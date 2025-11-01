@@ -1,6 +1,12 @@
-# Model Evaluation - Skeleton Code
-# Course: COMP-360
-# Team: Haroon, Saria, Azmeer
+"""
+======================================================
+Sign Language Recognition - Data Preprocessing 
+======================================================
+This script implements the model evaluation for sign language recognition.
+Team: Haroon, Saria, Azmeer
+Course: COMP-360 - Introduction to Artificial Intelligence
+Institution: Forman Christian College
+"""
 
 import numpy as np
 import matplotlib.pyplot as plt

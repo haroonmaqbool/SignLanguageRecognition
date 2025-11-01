@@ -1,3 +1,12 @@
+"""
+======================================================
+Sign Language Recognition - Camera Detection
+======================================================
+This script implements the camera detection for sign language recognition.
+Team: Haroon, Saria, Azmeer
+Course: COMP-360 - Introduction to Artificial Intelligence
+Institution: Forman Christian College
+"""
 import cv2
 import mediapipe as mp
 
