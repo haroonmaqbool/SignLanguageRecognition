@@ -26,7 +26,7 @@ Requirements:
 - OpenCV, MediaPipe, NumPy, Scikit-learn, TensorFlow/Keras
 - KaggleHub for dataset access
 
-Author: AI Coding Assistant
+Authors: Haroon, Saria, Azmeer
 Date: 2024
 """
 
