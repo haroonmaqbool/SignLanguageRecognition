@@ -1,1 +1,1 @@
-# SignLanguageRecognition-SLR-
+# SignLanguageRecognition-SLR
