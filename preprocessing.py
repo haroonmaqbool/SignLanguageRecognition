@@ -40,6 +40,9 @@ from tensorflow.keras.utils import to_categorical
 from pathlib import Path
 import time
 
+# Get the script's directory for path resolution
+SCRIPT_DIR = Path(__file__).parent.absolute()
+
 def main():
     """
     Main function to execute the complete data preprocessing pipeline.
@@ -67,19 +70,20 @@ def main():
     print("\n📥 Loading ASL Alphabet Dataset from local directory...")
     
     # Common dataset directory names - adjust as needed
+    # Use absolute paths relative to script directory
     possible_paths = [
-        "archive/asl_alphabet_train/asl_alphabet_train",  # Your dataset location
-        "asl_alphabet_train",
-        "asl_alphabet_train/asl_alphabet_train", 
-        "dataset/asl_alphabet_train",
-        "data/asl_alphabet_train",
-        "ASL_Alphabet_Dataset/asl_alphabet_train"
+        SCRIPT_DIR / "archive" / "asl_alphabet_train" / "asl_alphabet_train",  # Your dataset location
+        SCRIPT_DIR / "asl_alphabet_train",
+        SCRIPT_DIR / "asl_alphabet_train" / "asl_alphabet_train", 
+        SCRIPT_DIR / "dataset" / "asl_alphabet_train",
+        SCRIPT_DIR / "data" / "asl_alphabet_train",
+        SCRIPT_DIR / "ASL_Alphabet_Dataset" / "asl_alphabet_train"
     ]
     
     train_path = None
     for path in possible_paths:
-        if os.path.exists(path):
-            train_path = path
+        if path.exists():
+            train_path = str(path)
             break
     
     if train_path is None:
@@ -87,6 +91,8 @@ def main():
         print("📁 Please ensure your dataset is in one of these locations:")
         for path in possible_paths:
             print(f"   • {path}")
+        print(f"\n💡 Current working directory: {os.getcwd()}")
+        print(f"💡 Script directory: {SCRIPT_DIR}")
         print("\n💡 If your dataset is in a different location, please update the 'train_path' variable in the script.")
         print("📋 Expected structure: dataset_folder/asl_alphabet_train/A/, dataset_folder/asl_alphabet_train/B/, etc.")
         return
@@ -234,14 +240,14 @@ def main():
     print(f"\n💾 Saving processed data...")
     
     # Create output directory if it doesn't exist
-    output_dir = "processed_data"
-    os.makedirs(output_dir, exist_ok=True)
+    output_dir = SCRIPT_DIR / "processed_data"
+    output_dir.mkdir(exist_ok=True)
     
     # Save as numpy arrays
-    np.save(os.path.join(output_dir, "X_train.npy"), X_train)
-    np.save(os.path.join(output_dir, "X_test.npy"), X_test)
-    np.save(os.path.join(output_dir, "y_train.npy"), y_train)
-    np.save(os.path.join(output_dir, "y_test.npy"), y_test)
+    np.save(str(output_dir / "X_train.npy"), X_train)
+    np.save(str(output_dir / "X_test.npy"), X_test)
+    np.save(str(output_dir / "y_train.npy"), y_train)
+    np.save(str(output_dir / "y_test.npy"), y_test)
     
     print(f"✅ Data saved successfully in '{output_dir}' directory!")
     
