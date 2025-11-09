@@ -39,8 +39,10 @@ import seaborn as sns
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
 from sklearn.metrics import precision_recall_fscore_support
 from tensorflow.keras.models import load_model
-import os
+from pathlib import Path
 import time
+
+ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 def load_test_data():
     """
@@ -77,21 +79,18 @@ def load_trained_models():
     print("📥 Loading trained models...")
     
     models = {}
-    model_files = {
-        'CNN': 'models/cnn_final.h5',
-        'LSTM': 'models/lstm_final.h5'
-    }
+    model_files = {'CNN': 'models/cnn_final.h5', 'LSTM': 'models/lstm_final.h5'}
     
     for model_name, model_path in model_files.items():
-        try:
-            if os.path.exists(model_path):
+        if Path(model_path).exists():
+            try:
                 models[model_name] = load_model(model_path)
                 print(f"✅ {model_name} model loaded from {model_path}")
-            else:
-                print(f"⚠️  {model_name} model not found at {model_path}")
-                print(f"   Please run train_model.py first to train the models.")
-        except Exception as e:
-            print(f"❌ Error loading {model_name} model: {e}")
+            except Exception as e:
+                print(f"❌ Error loading {model_name} model: {e}")
+        else:
+            print(f"⚠️  {model_name} model not found at {model_path}")
+            print(f"   Please run train_model.py first to train the models.")
     
     return models
 
@@ -148,7 +147,7 @@ def evaluate_single_model(model, X_test, y_test, model_name):
     
     return results
 
-def plot_confusion_matrix(y_true, y_pred, model_name, alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ"):
+def plot_confusion_matrix(y_true, y_pred, model_name, alphabet=ALPHABET):
     """
     Plot and save confusion matrix for a model.
     
@@ -161,7 +160,7 @@ def plot_confusion_matrix(y_true, y_pred, model_name, alphabet="ABCDEFGHIJKLMNOP
     print(f"📊 Generating confusion matrix for {model_name}...")
     
     # Create plots directory
-    os.makedirs('plots', exist_ok=True)
+    Path('plots').mkdir(exist_ok=True)
     
     # Calculate confusion matrix
     cm = confusion_matrix(y_true, y_pred)
@@ -203,7 +202,7 @@ def plot_model_comparison(results_list):
     print("📊 Generating model comparison charts...")
     
     # Create plots directory
-    os.makedirs('plots', exist_ok=True)
+    Path('plots').mkdir(exist_ok=True)
     
     # Extract data for plotting
     model_names = [r['model_name'] for r in results_list]
@@ -287,7 +286,7 @@ def plot_model_comparison(results_list):
     
     print("✅ Model comparison charts saved as 'plots/model_comparison.png'")
 
-def generate_classification_reports(results_list, alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ"):
+def generate_classification_reports(results_list, alphabet=ALPHABET):
     """
     Generate and save detailed classification reports.
     
@@ -298,7 +297,7 @@ def generate_classification_reports(results_list, alphabet="ABCDEFGHIJKLMNOPQRST
     print("📋 Generating detailed classification reports...")
     
     # Create reports directory
-    os.makedirs('reports', exist_ok=True)
+    Path('reports').mkdir(exist_ok=True)
     
     for results in results_list:
         model_name = results['model_name']
@@ -426,4 +425,3 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\n❌ An error occurred during evaluation: {e}")
         print("Please check your setup and try again.")
-
