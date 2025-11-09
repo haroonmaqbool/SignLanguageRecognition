@@ -5,7 +5,6 @@ Sign Language Recognition - Camera Detection
 This script implements the camera detection for sign language recognition.
 Team: Haroon, Saria, Azmeer
 Course: COMP-360 - Introduction to Artificial Intelligence
-Institution: Forman Christian College
 """
 import cv2
 import numpy as np
@@ -14,34 +13,34 @@ from tensorflow.keras.models import load_model
 from pathlib import Path
 
 # Constants
-CLASS_NAMES = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
-PREDICT_LIVE = True # Set to True to enable live predictions
+Alphabets = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+Predictions = True # Set to True to enable live predictions
 
 # Get script directory
-SCRIPT_DIR = Path(__file__).parent.absolute()
+Script_dir = Path(__file__).parent.absolute()
 
 # Initialize MediaPipe
 mp_hands = mp.solutions.hands
 mp_drawing = mp.solutions.drawing_utils
 
-# Initialize model (only if PREDICT_LIVE is True)
+# Initialize model (only if Predictions is True)
 model = None
-if PREDICT_LIVE:
+if Predictions:
     try:
-        model_path = SCRIPT_DIR / "models" / "cnn_baseline.h5"
+        model_path = Script_dir / "models" / "cnn_baseline.h5"
         if model_path.exists():
-            print(f"Loading model from {model_path}...")
+            print(f"Loading model from {model_path}")
             model = load_model(str(model_path))
-            print("✓ Model loaded successfully!")
+            print("   Model loaded successfully!")
         else:
-            print(f"⚠️  Model not found: {model_path}")
+            print(f"  Model not found: {model_path}")
             print("   Please run train_model.py first to train the model.")
             print("   Running without predictions (hand tracking only).")
-            PREDICT_LIVE = False
+            Predictions = False
     except Exception as e:
-        print(f"✗ Error loading model: {e}")
+        print(f"  Error loading model: {e}")
         print("   Running without predictions (hand tracking only).")
-        PREDICT_LIVE = False
+        Predictions = False
 
 # Initialize MediaPipe Hands
 hands = mp_hands.Hands(
@@ -52,7 +51,6 @@ hands = mp_hands.Hands(
 
 # Initialize webcam
 webcam = cv2.VideoCapture(0)
-
 if not webcam.isOpened():
     print("✗ Error: Could not open webcam.")
     exit(1)
@@ -61,17 +59,16 @@ print("\n" + "=" * 60)
 print("Sign Language Recognition - Live Camera")
 print("=" * 60)
 print("Press 'q' to quit")
-if PREDICT_LIVE:
+if Predictions:
     print("Live prediction: ENABLED")
 else:
-    print("Live prediction: DISABLED (set PREDICT_LIVE = True to enable)")
+    print("Live prediction: DISABLED (set Predictions = True to enable)")
 print("=" * 60 + "\n")
 
 while webcam.isOpened():
     success, img = webcam.read()
-    
     if not success:
-        print("⚠️  Failed to read frame from webcam.")
+        print("Error: Failed to read frame from webcam.")
         break
     
     # Convert BGR to RGB for MediaPipe
@@ -93,7 +90,7 @@ while webcam.isOpened():
             )
         
         # Live prediction (only if enabled and model is loaded)
-        if PREDICT_LIVE and model is not None:
+        if Predictions and model is not None:
             # Extract landmarks from first hand
             first_hand = results.multi_hand_landmarks[0]
             
@@ -113,7 +110,7 @@ while webcam.isOpened():
             preds = model.predict(landmarks_array, verbose=0)
             predicted_class_idx = np.argmax(preds, axis=1)[0]
             confidence = preds[0][predicted_class_idx]
-            predicted_letter = CLASS_NAMES[predicted_class_idx]
+            predicted_letter = Alphabets[predicted_class_idx]
             
             # Overlay prediction on frame
             text = f"Predicted: {predicted_letter} ({confidence:.2f})"
@@ -125,11 +122,10 @@ while webcam.isOpened():
                 1,
                 (0, 255, 0),
                 2,
-                cv2.LINE_AA
             )
     else:
         # No hand detected
-        if PREDICT_LIVE:
+        if Predictions:
             cv2.putText(
                 img,
                 "No hand detected",
@@ -138,7 +134,6 @@ while webcam.isOpened():
                 1,
                 (0, 0, 255),
                 2,
-                cv2.LINE_AA
             )
     
     # Display frame
@@ -151,4 +146,4 @@ while webcam.isOpened():
 # Cleanup
 webcam.release()
 cv2.destroyAllWindows()
-print("\n✓ Webcam released. Exiting...")
+print("\n Webcam released. Exiting...")
