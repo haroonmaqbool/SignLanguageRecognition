@@ -359,6 +359,9 @@ def create_templates():
 # Find the create_templates() function in your app.py (around line 340)
 # Replace the entire html_content variable with this COMPLETE code:
 
+# Find the create_templates() function in your app.py (around line 340)
+# Replace the entire html_content variable with this COMPLETE code:
+
 def create_templates():
     """
     Create HTML templates for the web application.
@@ -387,6 +390,7 @@ def create_templates():
             overflow-x: hidden;
         }
 
+        /* Animated Green Background with Particles */
         .bg-animation {
             position: fixed;
             width: 100%;
@@ -394,37 +398,86 @@ def create_templates():
             top: 0;
             left: 0;
             z-index: -1;
-            background: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 100%);
+            background: linear-gradient(135deg, #0a1f1a 0%, #0d2818 50%, #061612 100%);
+            overflow: hidden;
         }
 
         .bg-animation::before {
             content: '';
             position: absolute;
-            width: 500px;
-            height: 500px;
-            background: radial-gradient(circle, rgba(99, 102, 241, 0.1) 0%, transparent 70%);
-            top: -250px;
-            right: -250px;
-            animation: float 20s infinite ease-in-out;
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(16, 185, 129, 0.15) 0%, transparent 70%);
+            top: -300px;
+            right: -300px;
+            animation: float 25s infinite ease-in-out;
         }
 
         .bg-animation::after {
             content: '';
             position: absolute;
-            width: 400px;
-            height: 400px;
-            background: radial-gradient(circle, rgba(168, 85, 247, 0.08) 0%, transparent 70%);
-            bottom: -200px;
-            left: -200px;
-            animation: float 15s infinite ease-in-out reverse;
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(52, 211, 153, 0.1) 0%, transparent 70%);
+            bottom: -250px;
+            left: -250px;
+            animation: float 20s infinite ease-in-out reverse;
+        }
+
+        /* Floating Particles */
+        .particle {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: rgba(16, 185, 129, 0.6);
+            border-radius: 50%;
+            animation: particleFloat 15s infinite ease-in-out;
+            box-shadow: 0 0 10px rgba(16, 185, 129, 0.8);
+        }
+
+        .particle:nth-child(1) { left: 10%; top: 20%; animation-delay: 0s; animation-duration: 12s; }
+        .particle:nth-child(2) { left: 20%; top: 80%; animation-delay: 2s; animation-duration: 15s; }
+        .particle:nth-child(3) { left: 60%; top: 10%; animation-delay: 4s; animation-duration: 18s; }
+        .particle:nth-child(4) { left: 80%; top: 70%; animation-delay: 6s; animation-duration: 14s; }
+        .particle:nth-child(5) { left: 30%; top: 50%; animation-delay: 8s; animation-duration: 16s; }
+        .particle:nth-child(6) { left: 70%; top: 40%; animation-delay: 3s; animation-duration: 13s; }
+        .particle:nth-child(7) { left: 50%; top: 90%; animation-delay: 5s; animation-duration: 17s; }
+        .particle:nth-child(8) { left: 90%; top: 30%; animation-delay: 7s; animation-duration: 11s; }
+
+        @keyframes particleFloat {
+            0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.3; }
+            25% { transform: translate(50px, -50px) scale(1.5); opacity: 0.8; }
+            50% { transform: translate(100px, 0) scale(1); opacity: 0.5; }
+            75% { transform: translate(50px, 50px) scale(1.2); opacity: 0.7; }
         }
 
         @keyframes float {
             0%, 100% { transform: translate(0, 0) rotate(0deg); }
-            33% { transform: translate(30px, -30px) rotate(120deg); }
-            66% { transform: translate(-20px, 20px) rotate(240deg); }
+            33% { transform: translate(40px, -40px) rotate(120deg); }
+            66% { transform: translate(-30px, 30px) rotate(240deg); }
         }
 
+        /* Grid Pattern Overlay */
+        .grid-overlay {
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            z-index: -1;
+            background-image: 
+                linear-gradient(rgba(16, 185, 129, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(16, 185, 129, 0.03) 1px, transparent 1px);
+            background-size: 50px 50px;
+            animation: gridMove 20s linear infinite;
+        }
+
+        @keyframes gridMove {
+            0% { transform: translate(0, 0); }
+            100% { transform: translate(50px, 50px); }
+        }
+
+        /* Landing Page */
         .landing-page {
             display: flex;
             flex-direction: column;
@@ -436,124 +489,235 @@ def create_templates():
             position: relative;
         }
 
+        /* Animated Hand Icon */
+        .hand-container {
+            position: relative;
+            margin-bottom: 40px;
+        }
+
         .hand-icon {
-            font-size: 8rem;
-            margin-bottom: 30px;
-            animation: wave 2s infinite ease-in-out;
-            filter: drop-shadow(0 0 30px rgba(99, 102, 241, 0.5));
+            font-size: 10rem;
+            animation: handWave 3s infinite ease-in-out;
+            filter: drop-shadow(0 0 40px rgba(16, 185, 129, 0.8));
+            position: relative;
+            z-index: 2;
         }
 
-        @keyframes wave {
-            0%, 100% { transform: rotate(0deg); }
-            25% { transform: rotate(20deg); }
-            75% { transform: rotate(-20deg); }
+        .hand-glow {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 200px;
+            height: 200px;
+            background: radial-gradient(circle, rgba(16, 185, 129, 0.4) 0%, transparent 70%);
+            border-radius: 50%;
+            animation: pulse 3s infinite ease-in-out;
+            z-index: 1;
         }
 
+        @keyframes handWave {
+            0%, 100% { transform: rotate(0deg) translateY(0); }
+            10% { transform: rotate(14deg) translateY(-10px); }
+            20% { transform: rotate(-8deg) translateY(0); }
+            30% { transform: rotate(14deg) translateY(-10px); }
+            40% { transform: rotate(-4deg) translateY(0); }
+            50% { transform: rotate(10deg) translateY(-5px); }
+            60% { transform: rotate(0deg) translateY(0); }
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.5; }
+            50% { transform: translate(-50%, -50%) scale(1.3); opacity: 0.2; }
+        }
+
+        /* Title with Gradient and Animation */
         .landing-page h1 {
-            font-size: 4rem;
-            font-weight: 800;
-            margin-bottom: 20px;
-            background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+            font-size: 4.5rem;
+            font-weight: 900;
+            margin-bottom: 25px;
+            background: linear-gradient(135deg, #10b981 0%, #34d399 50%, #6ee7b7 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
-            animation: fadeInDown 1s ease-out;
+            animation: titleGlow 3s ease-in-out infinite, fadeInDown 1s ease-out;
+            text-shadow: 0 0 80px rgba(16, 185, 129, 0.5);
+            letter-spacing: -2px;
+        }
+
+        @keyframes titleGlow {
+            0%, 100% { filter: brightness(1); }
+            50% { filter: brightness(1.3); }
         }
 
         .landing-page .subtitle {
-            font-size: 1.4rem;
+            font-size: 1.5rem;
             margin-bottom: 20px;
-            color: #a1a1aa;
-            max-width: 700px;
+            color: #9ca3af;
+            max-width: 750px;
             animation: fadeInUp 1s ease-out 0.2s backwards;
+            line-height: 1.6;
         }
 
         .landing-page .team-info {
-            font-size: 0.95rem;
-            color: #71717a;
-            margin-bottom: 50px;
+            font-size: 1rem;
+            color: #6b7280;
+            margin-bottom: 60px;
             animation: fadeInUp 1s ease-out 0.4s backwards;
+            padding: 12px 30px;
+            background: rgba(16, 185, 129, 0.1);
+            border-radius: 30px;
+            border: 1px solid rgba(16, 185, 129, 0.2);
         }
 
+        /* Feature Cards with 3D Effect */
         .feature-cards {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            max-width: 900px;
-            margin: 40px auto;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 25px;
+            max-width: 1000px;
+            margin: 50px auto;
             padding: 0 20px;
             animation: fadeInUp 1s ease-out 0.6s backwards;
         }
 
         .feature-card {
-            background: rgba(39, 39, 42, 0.5);
-            border: 1px solid rgba(99, 102, 241, 0.2);
-            border-radius: 15px;
-            padding: 25px;
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(52, 211, 153, 0.05) 100%);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            border-radius: 20px;
+            padding: 35px 25px;
             text-align: center;
-            transition: all 0.3s ease;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             backdrop-filter: blur(10px);
-        }
-
-        .feature-card:hover {
-            transform: translateY(-5px);
-            border-color: rgba(99, 102, 241, 0.5);
-            box-shadow: 0 10px 40px rgba(99, 102, 241, 0.2);
-        }
-
-        .feature-card .icon {
-            font-size: 2.5rem;
-            margin-bottom: 15px;
-        }
-
-        .feature-card h3 {
-            font-size: 1.1rem;
-            margin-bottom: 10px;
-            color: #e4e4e7;
-        }
-
-        .feature-card p {
-            font-size: 0.9rem;
-            color: #a1a1aa;
-            line-height: 1.5;
-        }
-
-        .try-now-btn {
-            padding: 20px 60px;
-            font-size: 1.3rem;
-            background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
-            color: white;
-            border: none;
-            border-radius: 50px;
-            cursor: pointer;
-            font-weight: 700;
-            transition: all 0.3s ease;
-            box-shadow: 0 10px 30px rgba(99, 102, 241, 0.3);
-            animation: fadeInUp 1s ease-out 0.8s backwards;
             position: relative;
             overflow: hidden;
         }
 
-        .try-now-btn::before {
+        .feature-card::before {
             content: '';
             position: absolute;
             top: 0;
             left: -100%;
             width: 100%;
             height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            background: linear-gradient(90deg, transparent, rgba(16, 185, 129, 0.2), transparent);
             transition: left 0.5s;
         }
 
-        .try-now-btn:hover::before {
+        .feature-card:hover::before {
             left: 100%;
         }
 
-        .try-now-btn:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 15px 40px rgba(99, 102, 241, 0.5);
+        .feature-card:hover {
+            transform: translateY(-10px) scale(1.05);
+            border-color: rgba(16, 185, 129, 0.6);
+            box-shadow: 0 20px 60px rgba(16, 185, 129, 0.3);
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(52, 211, 153, 0.1) 100%);
         }
 
+        .feature-card .icon {
+            font-size: 3.5rem;
+            margin-bottom: 20px;
+            animation: iconBounce 2s infinite ease-in-out;
+            display: inline-block;
+        }
+
+        .feature-card:nth-child(1) .icon { animation-delay: 0s; }
+        .feature-card:nth-child(2) .icon { animation-delay: 0.2s; }
+        .feature-card:nth-child(3) .icon { animation-delay: 0.4s; }
+        .feature-card:nth-child(4) .icon { animation-delay: 0.6s; }
+
+        @keyframes iconBounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .feature-card h3 {
+            font-size: 1.2rem;
+            margin-bottom: 12px;
+            color: #10b981;
+            font-weight: 700;
+        }
+
+        .feature-card p {
+            font-size: 0.95rem;
+            color: #9ca3af;
+            line-height: 1.6;
+        }
+
+        /* Try Now Button with Advanced Effects */
+        .try-now-btn {
+            padding: 22px 70px;
+            font-size: 1.4rem;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            font-weight: 800;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 15px 40px rgba(16, 185, 129, 0.4);
+            animation: fadeInUp 1s ease-out 0.8s backwards, buttonPulse 2s infinite;
+            position: relative;
+            overflow: hidden;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .try-now-btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+
+        .try-now-btn:hover::before {
+            width: 400px;
+            height: 400px;
+        }
+
+        .try-now-btn:hover {
+            transform: translateY(-5px) scale(1.05);
+            box-shadow: 0 20px 60px rgba(16, 185, 129, 0.6);
+        }
+
+        .try-now-btn:active {
+            transform: translateY(-2px) scale(1.02);
+        }
+
+        @keyframes buttonPulse {
+            0%, 100% { box-shadow: 0 15px 40px rgba(16, 185, 129, 0.4); }
+            50% { box-shadow: 0 15px 50px rgba(16, 185, 129, 0.6); }
+        }
+
+        /* Scroll Indicator */
+        .scroll-indicator {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            animation: bounce 2s infinite;
+        }
+
+        .scroll-indicator::before {
+            content: '↓';
+            font-size: 2rem;
+            color: #10b981;
+            opacity: 0.7;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateX(-50%) translateY(0); }
+            50% { transform: translateX(-50%) translateY(10px); }
+        }
+
+        /* App Page Styles */
         .app-page {
             display: none;
             padding: 20px;
@@ -575,14 +739,14 @@ def create_templates():
             background: rgba(39, 39, 42, 0.5);
             border-radius: 15px;
             backdrop-filter: blur(10px);
-            border: 1px solid rgba(99, 102, 241, 0.2);
+            border: 1px solid rgba(16, 185, 129, 0.2);
         }
 
         .back-btn {
             padding: 12px 30px;
-            background: rgba(99, 102, 241, 0.1);
-            color: #6366f1;
-            border: 1px solid #6366f1;
+            background: rgba(16, 185, 129, 0.1);
+            color: #10b981;
+            border: 1px solid #10b981;
             border-radius: 25px;
             cursor: pointer;
             font-size: 1rem;
@@ -591,14 +755,14 @@ def create_templates():
         }
 
         .back-btn:hover {
-            background: #6366f1;
+            background: #10b981;
             color: white;
             transform: translateX(-5px);
         }
 
         .header h2 {
             font-size: 1.8rem;
-            background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+            background: linear-gradient(135deg, #10b981 0%, #34d399 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
@@ -614,7 +778,7 @@ def create_templates():
             background: rgba(39, 39, 42, 0.5);
             border-radius: 20px;
             padding: 30px;
-            border: 1px solid rgba(99, 102, 241, 0.2);
+            border: 1px solid rgba(16, 185, 129, 0.2);
             backdrop-filter: blur(10px);
         }
 
@@ -654,7 +818,7 @@ def create_templates():
         }
 
         .model-selector label {
-            color: #a1a1aa;
+            color: #9ca3af;
             font-weight: 600;
             margin-right: 15px;
         }
@@ -663,7 +827,7 @@ def create_templates():
             padding: 12px 25px;
             background: rgba(39, 39, 42, 0.8);
             color: #e4e4e7;
-            border: 1px solid rgba(99, 102, 241, 0.3);
+            border: 1px solid rgba(16, 185, 129, 0.3);
             border-radius: 25px;
             font-size: 1rem;
             cursor: pointer;
@@ -671,7 +835,7 @@ def create_templates():
         }
 
         .model-selector select:hover {
-            border-color: #6366f1;
+            border-color: #10b981;
         }
 
         .controls {
@@ -693,24 +857,6 @@ def create_templates():
             overflow: hidden;
         }
 
-        .control-btn::before {
-            content: '';
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 0;
-            height: 0;
-            border-radius: 50%;
-            background: rgba(255, 255, 255, 0.2);
-            transform: translate(-50%, -50%);
-            transition: width 0.5s, height 0.5s;
-        }
-
-        .control-btn:active::before {
-            width: 300px;
-            height: 300px;
-        }
-
         .start-btn {
             background: linear-gradient(135deg, #10b981 0%, #059669 100%);
             color: white;
@@ -719,7 +865,7 @@ def create_templates():
 
         .start-btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4);
+            box-shadow: 0 8px 25px rgba(16, 185, 129, 0.5);
         }
 
         .stop-btn {
@@ -751,8 +897,8 @@ def create_templates():
         }
 
         .prediction-box {
-            background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(168, 85, 247, 0.15) 100%);
-            border: 1px solid rgba(99, 102, 241, 0.3);
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(52, 211, 153, 0.1) 100%);
+            border: 1px solid rgba(16, 185, 129, 0.3);
             padding: 30px;
             border-radius: 20px;
             text-align: center;
@@ -768,7 +914,7 @@ def create_templates():
             right: -50%;
             width: 200px;
             height: 200px;
-            background: radial-gradient(circle, rgba(99, 102, 241, 0.1) 0%, transparent 70%);
+            background: radial-gradient(circle, rgba(16, 185, 129, 0.15) 0%, transparent 70%);
             animation: rotate 10s linear infinite;
         }
 
@@ -779,7 +925,7 @@ def create_templates():
 
         .prediction-box h3 {
             font-size: 1rem;
-            color: #a1a1aa;
+            color: #9ca3af;
             margin-bottom: 15px;
             text-transform: uppercase;
             letter-spacing: 2px;
@@ -788,24 +934,18 @@ def create_templates():
         .current-letter {
             font-size: 5rem;
             font-weight: 800;
-            background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+            background: linear-gradient(135deg, #10b981 0%, #34d399 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
             margin: 20px 0;
             position: relative;
             z-index: 1;
-            animation: pulse 2s infinite ease-in-out;
-        }
-
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.05); }
         }
 
         .confidence {
             font-size: 1.1rem;
-            color: #71717a;
+            color: #6b7280;
             font-weight: 600;
         }
 
@@ -816,20 +956,19 @@ def create_templates():
             border-radius: 10px;
             margin-top: 15px;
             overflow: hidden;
-            position: relative;
         }
 
         .confidence-fill {
             height: 100%;
-            background: linear-gradient(90deg, #6366f1 0%, #a855f7 100%);
+            background: linear-gradient(90deg, #10b981 0%, #34d399 100%);
             border-radius: 10px;
             transition: width 0.5s ease;
-            box-shadow: 0 0 10px rgba(99, 102, 241, 0.5);
+            box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
         }
 
         .sentence-box {
             background: rgba(39, 39, 42, 0.5);
-            border: 1px solid rgba(99, 102, 241, 0.2);
+            border: 1px solid rgba(16, 185, 129, 0.2);
             padding: 30px;
             border-radius: 20px;
             backdrop-filter: blur(10px);
@@ -839,7 +978,7 @@ def create_templates():
 
         .sentence-box h3 {
             font-size: 1rem;
-            color: #a1a1aa;
+            color: #9ca3af;
             margin-bottom: 20px;
             text-transform: uppercase;
             letter-spacing: 2px;
@@ -860,7 +999,6 @@ def create_templates():
             word-wrap: break-word;
             min-height: 100px;
             font-weight: 500;
-            letter-spacing: 0.5px;
         }
 
         .stats-grid {
@@ -872,7 +1010,7 @@ def create_templates():
 
         .stat-card {
             background: rgba(39, 39, 42, 0.5);
-            border: 1px solid rgba(99, 102, 241, 0.2);
+            border: 1px solid rgba(16, 185, 129, 0.2);
             padding: 20px;
             border-radius: 15px;
             text-align: center;
@@ -881,7 +1019,7 @@ def create_templates():
         .stat-card .value {
             font-size: 2rem;
             font-weight: 700;
-            background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+            background: linear-gradient(135deg, #10b981 0%, #34d399 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
@@ -889,7 +1027,7 @@ def create_templates():
 
         .stat-card .label {
             font-size: 0.9rem;
-            color: #71717a;
+            color: #6b7280;
             margin-top: 5px;
         }
 
@@ -899,104 +1037,84 @@ def create_templates():
         }
 
         @keyframes fadeInDown {
-            from {
-                opacity: 0;
-                transform: translateY(-30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+            from { opacity: 0; transform: translateY(-30px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
         @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
         @media (max-width: 1200px) {
-            .main-content {
-                grid-template-columns: 1fr;
-            }
+            .main-content { grid-template-columns: 1fr; }
         }
 
         @media (max-width: 768px) {
-            .landing-page h1 {
-                font-size: 2.5rem;
-            }
-            .hand-icon {
-                font-size: 5rem;
-            }
-            .feature-cards {
-                grid-template-columns: 1fr;
-            }
-            .current-letter {
-                font-size: 3.5rem;
-            }
-            .sentence-display {
-                font-size: 1.4rem;
-            }
-            .top-bar {
-                flex-direction: column;
-                gap: 15px;
-            }
-            .stats-grid {
-                grid-template-columns: 1fr;
-            }
+            .landing-page h1 { font-size: 2.8rem; }
+            .hand-icon { font-size: 6rem; }
+            .feature-cards { grid-template-columns: 1fr; }
+            .current-letter { font-size: 3.5rem; }
+            .sentence-display { font-size: 1.4rem; }
+            .top-bar { flex-direction: column; gap: 15px; }
+            .stats-grid { grid-template-columns: 1fr; }
         }
 
-        ::-webkit-scrollbar {
-            width: 10px;
-        }
-        ::-webkit-scrollbar-track {
-            background: #18181b;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #6366f1;
-            border-radius: 5px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #a855f7;
-        }
+        ::-webkit-scrollbar { width: 10px; }
+        ::-webkit-scrollbar-track { background: #18181b; }
+        ::-webkit-scrollbar-thumb { background: #10b981; border-radius: 5px; }
+        ::-webkit-scrollbar-thumb:hover { background: #059669; }
     </style>
 </head>
 <body>
-    <div class="bg-animation"></div>
+    <div class="bg-animation">
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+    </div>
+    <div class="grid-overlay"></div>
+
     <div id="landingPage" class="landing-page">
-        <div class="hand-icon">🤟</div>
+        <div class="hand-container">
+            <div class="hand-glow"></div>
+            <div class="hand-icon">🤟</div>
+        </div>
         <h1>Sign Language Recognition</h1>
-        <p class="subtitle">Transform hand gestures into text in real-time using AI-powered deep learning technology</p>
+        <p class="subtitle">Transform hand gestures into text in real-time using cutting-edge AI-powered deep learning technology</p>
         <p class="team-info">Team: Haroon, Saria, Azmeer | COMP-360 | Forman Christian College</p>
+        
         <div class="feature-cards">
             <div class="feature-card">
                 <div class="icon">🎥</div>
                 <h3>Real-Time Detection</h3>
-                <p>Instant gesture recognition using your webcam</p>
+                <p>Instant gesture recognition using your webcam with millisecond response</p>
             </div>
             <div class="feature-card">
                 <div class="icon">🧠</div>
                 <h3>AI Powered</h3>
-                <p>Advanced CNN & LSTM neural networks</p>
+                <p>Advanced CNN & LSTM neural networks trained for precision</p>
             </div>
             <div class="feature-card">
                 <div class="icon">✍️</div>
                 <h3>Text Generation</h3>
-                <p>Automatic sentence building from gestures</p>
+                <p>Automatic sentence building from detected gestures</p>
             </div>
             <div class="feature-card">
                 <div class="icon">⚡</div>
                 <h3>High Accuracy</h3>
-                <p>Trained on thousands of sign language samples</p>
+                <p>Trained on thousands of ASL samples for reliability</p>
             </div>
         </div>
+
         <button class="try-now-btn" onclick="showApp()">Try Now →</button>
+        <div class="scroll-indicator"></div>
     </div>
+
     <div id="appPage" class="app-page">
         <div class="top-bar">
             <button class="back-btn" onclick="showLanding()">← Back</button>
@@ -1178,6 +1296,7 @@ def create_templates():
         f.write(html_content)
     
     print("✅ HTML template created successfully!")
+    
 
 def main():
     """
