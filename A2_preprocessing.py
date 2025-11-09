@@ -266,3 +266,5 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\nAn error occurred: {e}")
         print("Please try again.")
+
+print("Preprocessing pipeline completed successfully!")
