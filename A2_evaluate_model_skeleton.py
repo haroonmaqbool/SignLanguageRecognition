@@ -30,8 +30,8 @@ def load_test_data():
     
     try:
         data_dir = Script_dir / "processed_data"
-        X_test = np.load(str(data_dir / "X_test.npy"))
-        y_test = np.load(str(data_dir / "y_test.npy"))
+        X_test = np.load(data_dir / "X_test.npy")
+        y_test = np.load(data_dir / "y_test.npy")
         
         print(f"Test data loaded successfully!")
         print(f"Test samples: {X_test.shape[0]}")
@@ -62,7 +62,7 @@ def load_trained_models():
     baseline_path = models_dir / "cnn_baseline.h5"
     if baseline_path.exists():
         try:
-            models['baseline'] = load_model(str(baseline_path))
+            models['baseline'] = load_model(baseline_path)
             print(f" Loaded baseline model: {baseline_path}")
         except Exception as e:
             print(f" Error loading baseline model: {e}")
@@ -74,7 +74,7 @@ def load_trained_models():
     final_path = models_dir / "cnn_last.h5"
     if final_path.exists():
         try:
-            models['final'] = load_model(str(final_path))
+            models['final'] = load_model(final_path)
             print(f" Loaded final model: {final_path}")
         except Exception as e:
             print(f" Error loading final model: {e}")
@@ -113,14 +113,14 @@ def evaluate_model(model, X_test, y_test, model_name):
     plt.colorbar()
     
     # Add labels
-    tick_marks = np.arange(len(Alphabets))
+    tick_marks = np.arange(Num_Alphabets)
     plt.xticks(tick_marks, Alphabets, rotation=45)
     plt.yticks(tick_marks, Alphabets)
     
     # Add text annotations
     thresh = cm.max() / 2.0
-    for i in range(len(Alphabets)):
-        for j in range(len(Alphabets)):
+    for i in range(Num_Alphabets):
+        for j in range(Num_Alphabets):
             plt.text(j, i, format(cm[i, j], 'd'),
                     horizontalalignment="center",
                     color="white" if cm[i, j] > thresh else "black",
@@ -134,7 +134,7 @@ def evaluate_model(model, X_test, y_test, model_name):
     plots_dir = Script_dir / "plots"
     plots_dir.mkdir(exist_ok=True)
     plot_path = plots_dir / f"confusion_matrix_{model_name.lower().replace(' ', '_')}.png"
-    plt.savefig(str(plot_path), dpi=300, bbox_inches='tight')
+    plt.savefig(plot_path, dpi=300, bbox_inches='tight')
     print(f" Confusion matrix saved: {plot_path}")
     plt.close()
     
@@ -142,8 +142,7 @@ def evaluate_model(model, X_test, y_test, model_name):
     print("\n" + "-" * 60)
     print("Classification Report:")
     print("-" * 60)
-    report = classification_report(true_classes, predicted_classes, target_names=Alphabets)
-    print(report)
+    print(classification_report(true_classes, predicted_classes, target_names=Alphabets))
     
     return accuracy
 

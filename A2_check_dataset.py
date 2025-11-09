@@ -1,14 +1,3 @@
-"""
-Dataset Structure Checker
-========================
-
-This script helps you verify that your ASL alphabet dataset is properly organized
-and ready for preprocessing.
-
-Author: AI Coding Assistant
-Date: 2024
-"""
-
 import os
 from pathlib import Path
 
