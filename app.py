@@ -80,8 +80,8 @@ class SignLanguageApp:
         print("📥 Loading trained models...")
         
         model_files = {
-            'CNN': 'models/cnn_final.h5',
-            'LSTM': 'models/lstm_final.h5'
+            'CNN': 'models/cnn_baseline.h5',
+            'CNN': 'models/cnn_last.h5'
         }
         
         for model_name, model_path in model_files.items():
