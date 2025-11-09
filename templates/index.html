@@ -1,413 +1,439 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sign Language Recognition System</title>
+    <title>Sign Language Recognition</title>
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
-            padding: 20px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
         }
-        .container {
+
+        /* Landing Page Styles */
+        .landing-page {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            text-align: center;
+            padding: 20px;
+            color: white;
+        }
+
+        .landing-page h1 {
+            font-size: 3.5rem;
+            margin-bottom: 20px;
+            animation: fadeInDown 1s ease-out;
+        }
+
+        .landing-page p {
+            font-size: 1.3rem;
+            margin-bottom: 40px;
+            max-width: 600px;
+            animation: fadeInUp 1s ease-out;
+        }
+
+        .try-now-btn {
+            padding: 18px 50px;
+            font-size: 1.2rem;
+            background: white;
+            color: #667eea;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            animation: pulse 2s infinite;
+        }
+
+        .try-now-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        /* App Page Styles */
+        .app-page {
+            display: none;
+            padding: 20px;
             max-width: 1200px;
             margin: 0 auto;
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-            overflow: hidden;
         }
+
+        .app-page.active {
+            display: block;
+        }
+
         .header {
-            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-            color: white;
-            padding: 30px;
             text-align: center;
-        }
-        .header h1 {
-            margin: 0;
-            font-size: 2.5em;
-            font-weight: 300;
-        }
-        .header p {
-            margin: 10px 0 0 0;
-            font-size: 1.2em;
-            opacity: 0.9;
-        }
-        .content {
-            padding: 40px;
-        }
-        .section {
-            margin-bottom: 40px;
-            padding: 30px;
-            border: 2px solid #f0f0f0;
-            border-radius: 10px;
-            background: #fafafa;
-        }
-        .section h2 {
-            color: #333;
-            margin-top: 0;
-            border-bottom: 2px solid #4facfe;
-            padding-bottom: 10px;
-        }
-        .upload-area {
-            border: 3px dashed #4facfe;
-            border-radius: 10px;
-            padding: 40px;
-            text-align: center;
-            background: white;
-            transition: all 0.3s ease;
-            cursor: pointer;
-        }
-        .upload-area:hover {
-            border-color: #00f2fe;
-            background: #f8f9ff;
-        }
-        .upload-area.dragover {
-            border-color: #00f2fe;
-            background: #e8f4ff;
-        }
-        .file-input {
-            display: none;
-        }
-        .btn {
-            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
             color: white;
-            border: none;
-            padding: 12px 30px;
-            border-radius: 25px;
-            cursor: pointer;
-            font-size: 16px;
-            font-weight: 600;
-            transition: all 0.3s ease;
-            margin: 10px;
+            margin-bottom: 30px;
         }
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(79, 172, 254, 0.4);
-        }
-        .btn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
-        }
-        .model-selector {
-            margin: 20px 0;
-        }
-        .model-selector select {
-            padding: 10px;
-            border: 2px solid #4facfe;
-            border-radius: 5px;
-            font-size: 16px;
-            margin: 0 10px;
-        }
-        .result {
-            margin-top: 30px;
-            padding: 20px;
-            background: white;
-            border-radius: 10px;
-            border-left: 5px solid #4facfe;
-        }
-        .prediction {
-            font-size: 2em;
-            font-weight: bold;
-            color: #4facfe;
-            margin: 10px 0;
-        }
-        .confidence {
-            font-size: 1.2em;
-            color: #666;
-            margin: 10px 0;
-        }
-        .top-predictions {
-            margin-top: 20px;
-        }
-        .top-predictions h4 {
-            color: #333;
+
+        .header h2 {
+            font-size: 2.5rem;
             margin-bottom: 10px;
         }
-        .prediction-item {
+
+        .back-btn {
+            padding: 10px 25px;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: 2px solid white;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            margin-bottom: 20px;
+        }
+
+        .back-btn:hover {
+            background: white;
+            color: #667eea;
+        }
+
+        .content-container {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        .camera-section {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .camera-container {
+            position: relative;
+            max-width: 640px;
+            margin: 0 auto 20px;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        #video {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .camera-overlay {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+        }
+
+        .controls {
             display: flex;
-            justify-content: space-between;
-            padding: 8px 0;
-            border-bottom: 1px solid #eee;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
         }
-        .prediction-item:last-child {
-            border-bottom: none;
+
+        .control-btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
         }
-        .image-display {
-            margin-top: 20px;
+
+        .start-btn {
+            background: #667eea;
+            color: white;
+        }
+
+        .start-btn:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+        }
+
+        .stop-btn {
+            background: #ef4444;
+            color: white;
+        }
+
+        .stop-btn:hover {
+            background: #dc2626;
+            transform: translateY(-2px);
+        }
+
+        .clear-btn {
+            background: #f59e0b;
+            color: white;
+        }
+
+        .clear-btn:hover {
+            background: #d97706;
+            transform: translateY(-2px);
+        }
+
+        .output-section {
+            margin-top: 30px;
+        }
+
+        .prediction-box {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
             text-align: center;
         }
-        .image-display img {
-            max-width: 100%;
-            max-height: 400px;
-            border-radius: 10px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+
+        .prediction-box h3 {
+            font-size: 1.2rem;
+            margin-bottom: 10px;
+            opacity: 0.9;
         }
-        .loading {
-            display: none;
-            text-align: center;
-            margin: 20px 0;
+
+        .current-letter {
+            font-size: 4rem;
+            font-weight: bold;
+            margin: 10px 0;
         }
-        .spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #4facfe;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto;
+
+        .confidence {
+            font-size: 1rem;
+            opacity: 0.8;
         }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+
+        .sentence-box {
+            background: #f3f4f6;
+            padding: 25px;
+            border-radius: 15px;
+            min-height: 100px;
         }
-        .error {
-            color: #e74c3c;
-            background: #ffeaea;
-            padding: 15px;
-            border-radius: 5px;
-            border-left: 5px solid #e74c3c;
-            margin: 20px 0;
+
+        .sentence-box h3 {
+            font-size: 1.2rem;
+            color: #667eea;
+            margin-bottom: 15px;
         }
-        .success {
-            color: #27ae60;
-            background: #eafaf1;
-            padding: 15px;
-            border-radius: 5px;
-            border-left: 5px solid #27ae60;
-            margin: 20px 0;
+
+        .sentence-display {
+            font-size: 1.8rem;
+            color: #1f2937;
+            line-height: 1.6;
+            word-wrap: break-word;
+            min-height: 50px;
         }
-        .checkbox-container {
-            margin: 20px 0;
+
+        /* Animations */
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
-        .checkbox-container input[type="checkbox"] {
-            margin-right: 10px;
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
-        .info-box {
-            background: #e8f4ff;
-            border: 1px solid #4facfe;
-            border-radius: 5px;
-            padding: 15px;
-            margin: 20px 0;
+
+        @keyframes pulse {
+            0%, 100% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.05);
+            }
         }
-        .info-box h4 {
-            margin-top: 0;
-            color: #4facfe;
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .landing-page h1 {
+                font-size: 2.5rem;
+            }
+
+            .landing-page p {
+                font-size: 1.1rem;
+            }
+
+            .header h2 {
+                font-size: 2rem;
+            }
+
+            .current-letter {
+                font-size: 3rem;
+            }
+
+            .sentence-display {
+                font-size: 1.4rem;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>Sign Language Recognition System</h1>
-            <p>Team: Haroon, Saria, Azmeer | COMP-360 | Forman Christian College</p>
-        </div>
+    <!-- Landing Page -->
+    <div id="landingPage" class="landing-page">
+        <h1>🤟 Sign Language Recognition</h1>
+        <p>Transform hand gestures into text in real-time using AI-powered recognition technology</p>
+        <button class="try-now-btn" onclick="showApp()">Try Now</button>
+    </div>
+
+    <!-- App Page -->
+    <div id="appPage" class="app-page">
+        <button class="back-btn" onclick="showLanding()">← Back to Home</button>
         
-        <div class="content">
-            <div class="section">
-                <h2>📸 Image Upload & Prediction</h2>
-                
-                <div class="info-box">
-                    <h4>How to use:</h4>
-                    <ul>
-                        <li>Upload an image containing a hand gesture</li>
-                        <li>Select your preferred model (CNN or LSTM)</li>
-                        <li>Optionally enable hand landmark visualization</li>
-                        <li>Click "Predict" to get the sign language prediction</li>
-                    </ul>
+        <div class="header">
+            <h2>Real-Time Sign Language Detection</h2>
+        </div>
+
+        <div class="content-container">
+            <!-- Camera Section -->
+            <div class="camera-section">
+                <div class="camera-container">
+                    <video id="video" autoplay></video>
+                    <div class="camera-overlay">🔴 Live</div>
                 </div>
-                
-                <div class="upload-area" onclick="document.getElementById('imageInput').click()">
-                    <div id="uploadText">
-                        <h3>📁 Click to upload an image</h3>
-                        <p>or drag and drop your image here</p>
-                        <p>Supported formats: JPG, PNG, JPEG</p>
-                    </div>
-                    <input type="file" id="imageInput" class="file-input" accept="image/*">
+
+                <div class="controls">
+                    <button class="control-btn start-btn" onclick="startCamera()">Start Camera</button>
+                    <button class="control-btn stop-btn" onclick="stopCamera()">Stop Camera</button>
+                    <button class="control-btn clear-btn" onclick="clearSentence()">Clear Text</button>
                 </div>
-                
-                <div class="model-selector">
-                    <label for="modelSelect"><strong>Select Model:</strong></label>
-                    <select id="modelSelect">
-                        {% for model in available_models %}
-                        <option value="{{ model }}" {% if model == current_model %}selected{% endif %}>{{ model }}</option>
-                        {% endfor %}
-                    </select>
+            </div>
+
+            <!-- Output Section -->
+            <div class="output-section">
+                <!-- Current Prediction -->
+                <div class="prediction-box">
+                    <h3>Current Gesture</h3>
+                    <div class="current-letter" id="currentLetter">-</div>
+                    <div class="confidence" id="confidence">Confidence: 0%</div>
                 </div>
-                
-                <div class="checkbox-container">
-                    <input type="checkbox" id="drawLandmarks">
-                    <label for="drawLandmarks">Show hand landmarks on result image</label>
+
+                <!-- Sentence Output -->
+                <div class="sentence-box">
+                    <h3>Generated Text</h3>
+                    <div class="sentence-display" id="sentenceDisplay">Start making gestures...</div>
                 </div>
-                
-                <button class="btn" onclick="predictImage()" id="predictBtn">🔮 Predict Sign Language</button>
-                
-                <div class="loading" id="loading">
-                    <div class="spinner"></div>
-                    <p>Processing image and extracting hand landmarks...</p>
-                </div>
-                
-                <div id="result"></div>
             </div>
         </div>
     </div>
 
     <script>
-        // File upload handling
-        const uploadArea = document.querySelector('.upload-area');
-        const fileInput = document.getElementById('imageInput');
-        const uploadText = document.getElementById('uploadText');
-        
-        // Drag and drop functionality
-        uploadArea.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            uploadArea.classList.add('dragover');
-        });
-        
-        uploadArea.addEventListener('dragleave', () => {
-            uploadArea.classList.remove('dragover');
-        });
-        
-        uploadArea.addEventListener('drop', (e) => {
-            e.preventDefault();
-            uploadArea.classList.remove('dragover');
-            const files = e.dataTransfer.files;
-            if (files.length > 0) {
-                fileInput.files = files;
-                updateUploadText(files[0].name);
-            }
-        });
-        
-        fileInput.addEventListener('change', (e) => {
-            if (e.target.files.length > 0) {
-                updateUploadText(e.target.files[0].name);
-            }
-        });
-        
-        function updateUploadText(fileName) {
-            uploadText.innerHTML = `<h3>📁 Selected: ${fileName}</h3><p>Click to change image</p>`;
+        let video = document.getElementById('video');
+        let currentSentence = '';
+        let stream = null;
+
+        // Show app page
+        function showApp() {
+            document.getElementById('landingPage').style.display = 'none';
+            document.getElementById('appPage').classList.add('active');
         }
-        
-        // Prediction function
-        async function predictImage() {
-            const fileInput = document.getElementById('imageInput');
-            const modelSelect = document.getElementById('modelSelect');
-            const drawLandmarks = document.getElementById('drawLandmarks');
-            const loading = document.getElementById('loading');
-            const result = document.getElementById('result');
-            const predictBtn = document.getElementById('predictBtn');
-            
-            if (!fileInput.files[0]) {
-                showError('Please select an image file first.');
-                return;
-            }
-            
-            // Show loading
-            loading.style.display = 'block';
-            predictBtn.disabled = true;
-            result.innerHTML = '';
-            
+
+        // Show landing page
+        function showLanding() {
+            document.getElementById('appPage').classList.remove('active');
+            document.getElementById('landingPage').style.display = 'flex';
+            stopCamera();
+        }
+
+        // Start camera
+        async function startCamera() {
             try {
-                const formData = new FormData();
-                formData.append('image', fileInput.files[0]);
-                formData.append('model', modelSelect.value);
-                formData.append('draw_landmarks', drawLandmarks.checked);
-                
-                const response = await fetch('/predict', {
-                    method: 'POST',
-                    body: formData
+                stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { width: 640, height: 480 } 
                 });
+                video.srcObject = stream;
                 
-                const data = await response.json();
-                
-                if (data.error) {
-                    showError(data.error);
-                } else {
-                    showResult(data);
-                }
-                
-            } catch (error) {
-                showError('Error processing image: ' + error.message);
-            } finally {
-                loading.style.display = 'none';
-                predictBtn.disabled = false;
+                // Start prediction loop
+                startPredictionLoop();
+            } catch (err) {
+                alert('Error accessing camera: ' + err.message);
             }
         }
-        
-        function showResult(data) {
-            const result = document.getElementById('result');
-            
-            let html = '<div class="result">';
-            
-            if (data.prediction) {
-                html += `<div class="success">✅ Prediction successful!</div>`;
-                html += `<div class="prediction">Predicted Letter: ${data.prediction}</div>`;
-                html += `<div class="confidence">Confidence: ${(data.confidence * 100).toFixed(2)}%</div>`;
-                html += `<div class="confidence">Model Used: ${data.model_used}</div>`;
-                
-                if (data.top_predictions && data.top_predictions.length > 0) {
-                    html += '<div class="top-predictions">';
-                    html += '<h4>Top Predictions:</h4>';
-                    data.top_predictions.forEach((pred, index) => {
-                        html += `<div class="prediction-item">`;
-                        html += `<span>${index + 1}. ${pred.letter}</span>`;
-                        html += `<span>${(pred.confidence * 100).toFixed(2)}%</span>`;
-                        html += `</div>`;
-                    });
-                    html += '</div>';
-                }
-                
-                if (data.image_with_landmarks) {
-                    html += '<div class="image-display">';
-                    html += '<h4>Processed Image:</h4>';
-                    html += `<img src="data:image/jpeg;base64,${data.image_with_landmarks}" alt="Processed Image">`;
-                    html += '</div>';
-                }
-            } else {
-                html += `<div class="error">❌ ${data.error || 'No prediction available'}</div>`;
-            }
-            
-            html += '</div>';
-            result.innerHTML = html;
-        }
-        
-        function showError(message) {
-            const result = document.getElementById('result');
-            result.innerHTML = `<div class="error">❌ ${message}</div>`;
-        }
-        
-        // Set model function
-        async function setModel(modelName) {
-            try {
-                const response = await fetch('/set_model', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ model: modelName })
-                });
-                
-                const data = await response.json();
-                if (data.error) {
-                    console.error('Error setting model:', data.error);
-                } else {
-                    console.log('Model set to:', data.current_model);
-                }
-            } catch (error) {
-                console.error('Error setting model:', error);
+
+        // Stop camera
+        function stopCamera() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                video.srcObject = null;
+                stream = null;
             }
         }
-        
-        // Model selection change
-        document.getElementById('modelSelect').addEventListener('change', (e) => {
-            setModel(e.target.value);
-        });
+
+        // Clear sentence
+        function clearSentence() {
+            currentSentence = '';
+            document.getElementById('sentenceDisplay').textContent = 'Start making gestures...';
+        }
+
+        // Start prediction loop (calls backend)
+        function startPredictionLoop() {
+            setInterval(async () => {
+                if (!stream) return;
+
+                // Capture frame from video
+                const canvas = document.createElement('canvas');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(video, 0, 0);
+                
+                // Convert to blob
+                canvas.toBlob(async (blob) => {
+                    // Send to backend for prediction
+                    const formData = new FormData();
+                    formData.append('image', blob, 'frame.jpg');
+
+                    try {
+                        const response = await fetch('/predict', {
+                            method: 'POST',
+                            body: formData
+                        });
+
+                        const data = await response.json();
+                        
+                        if (data.success) {
+                            // Update current letter
+                            document.getElementById('currentLetter').textContent = data.prediction;
+                            document.getElementById('confidence').textContent = 
+                                `Confidence: ${(data.confidence * 100).toFixed(1)}%`;
+                            
+                            // Add to sentence (only if confidence is high)
+                            if (data.confidence > 0.7) {
+                                currentSentence += data.prediction;
+                                document.getElementById('sentenceDisplay').textContent = currentSentence;
+                            }
+                        }
+                    } catch (err) {
+                        console.error('Prediction error:', err);
+                    }
+                }, 'image/jpeg');
+                
+            }, 1000); // Send frame every 1 second
+        }
     </script>
 </body>
 </html>
-    
