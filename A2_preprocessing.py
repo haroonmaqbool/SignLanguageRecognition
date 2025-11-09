@@ -19,107 +19,9 @@ from sklearn.model_selection import train_test_split
 from tensorflow.keras.utils import to_categorical
 from pathlib import Path
 import time
-import random
 
 # Get the script's directory for path resolution
 SCRIPT_DIR = Path(__file__).parent.absolute()
-
-# Configuration flags
-NORMALIZE_LANDMARKS = True  # Set to True to normalize landmarks
-KEEP_Z = False  # Set to True to keep z coordinates (42 vs 63 features)
-APPLY_AUGMENTATION = True  # Set to True to apply data augmentation
-
-
-def normalize_landmarks(landmarks_array, keep_z=False):
-    """
-    Normalize landmarks using wrist as origin and scale normalization.
-    
-    Args:
-        landmarks_array: Array of shape (63,) with x,y,z for 21 landmarks
-        keep_z: If True, normalize z coordinates too; if False, drop z
-    
-    Returns:
-        Normalized array of shape (42,) if keep_z=False, (63,) if keep_z=True
-    """
-    # Reshape to (21, 3) for easier manipulation
-    landmarks = landmarks_array.reshape(21, 3)
-    
-    # Get wrist point (landmark id 0)
-    wrist_x = landmarks[0, 0]
-    wrist_y = landmarks[0, 1]
-    wrist_z = landmarks[0, 2]
-    
-    # Subtract wrist from all points (translate to origin)
-    normalized = landmarks.copy()
-    normalized[:, 0] = normalized[:, 0] - wrist_x
-    normalized[:, 1] = normalized[:, 1] - wrist_y
-    if keep_z:
-        normalized[:, 2] = normalized[:, 2] - wrist_z
-    
-    # Compute scale as max Euclidean distance among (x,y) points
-    max_dist = 0.0
-    for i in range(21):
-        for j in range(i + 1, 21):
-            dist = np.sqrt((normalized[i, 0] - normalized[j, 0])**2 + 
-                          (normalized[i, 1] - normalized[j, 1])**2)
-            if dist > max_dist:
-                max_dist = dist
-    
-    # Avoid division by zero
-    if max_dist > 1e-6:
-        normalized[:, 0] = normalized[:, 0] / max_dist
-        normalized[:, 1] = normalized[:, 1] / max_dist
-        if keep_z:
-            normalized[:, 2] = normalized[:, 2] / max_dist
-    
-    # Flatten and return
-    if keep_z:
-        return normalized.flatten()  # (63,)
-    else:
-        return normalized[:, :2].flatten()  # (42,)
-
-
-def augment_landmarks(landmarks_array, keep_z=False):
-    """
-    Apply light augmentation: rotation, scale jitter, and shift.
-    
-    Args:
-        landmarks_array: Array of shape (42,) or (63,)
-        keep_z: Whether z coordinates are included
-    
-    Returns:
-        Augmented array of same shape
-    """
-    # Reshape to (21, 2) or (21, 3)
-    if keep_z:
-        landmarks = landmarks_array.reshape(21, 3)
-        num_dims = 3
-    else:
-        landmarks = landmarks_array.reshape(21, 2)
-        num_dims = 2
-    
-    # Random rotation (±12 degrees)
-    if random.random() < 0.3:
-        angle = random.uniform(-12, 12) * np.pi / 180.0
-        cos_a = np.cos(angle)
-        sin_a = np.sin(angle)
-        rotation_matrix = np.array([[cos_a, -sin_a], [sin_a, cos_a]])
-        landmarks[:, :2] = landmarks[:, :2] @ rotation_matrix.T
-    
-    # Random scale jitter (±10%)
-    if random.random() < 0.3:
-        scale = random.uniform(0.9, 1.1)
-        landmarks[:, :2] = landmarks[:, :2] * scale
-    
-    # Random shift (±0.03 in x, y)
-    if random.random() < 0.3:
-        shift_x = random.uniform(-0.03, 0.03)
-        shift_y = random.uniform(-0.03, 0.03)
-        landmarks[:, 0] = landmarks[:, 0] + shift_x
-        landmarks[:, 1] = landmarks[:, 1] + shift_y
-    
-    return landmarks.flatten()
-
 
 def main():
     """
@@ -258,25 +160,11 @@ def main():
                     for landmark in hand_landmarks.landmark:
                         landmarks.extend([landmark.x, landmark.y, landmark.z])
                     
-                    landmarks_array = np.array(landmarks, dtype=np.float32)
-                    
-                    # Normalize landmarks if enabled
-                    if NORMALIZE_LANDMARKS:
-                        landmarks_array = normalize_landmarks(landmarks_array, keep_z=KEEP_Z)
-                    
-                    # Add original to dataset
-                    X.append(landmarks_array)
+                    # Add to dataset
+                    X.append(landmarks)
                     y.append(label_mapping[letter])
                     letter_processed += 1
                     processed_count += 1
-                    
-                    # Apply augmentation if enabled (only for training data)
-                    if APPLY_AUGMENTATION and random.random() < 0.3:
-                        augmented = augment_landmarks(landmarks_array.copy(), keep_z=KEEP_Z)
-                        X.append(augmented)
-                        y.append(label_mapping[letter])
-                        letter_processed += 1
-                        processed_count += 1
                     
                     # Progress update every 100 images
                     if processed_count % 100 == 0:
@@ -303,20 +191,6 @@ def main():
     print(f"   Feature matrix shape: {X.shape}")
     print(f"   Labels shape: {y.shape}")
     
-    # Print statistics after processing
-    print(f"\nStatistics AFTER processing:")
-    print(f"   Mean: {np.mean(X):.6f}")
-    print(f"   Std: {np.std(X):.6f}")
-    print(f"   Min: {np.min(X):.6f}")
-    print(f"   Max: {np.max(X):.6f}")
-    
-    # Confirm feature dimension
-    expected_dim = 42 if (NORMALIZE_LANDMARKS and not KEEP_Z) else 63
-    if X.shape[1] == expected_dim:
-        print(f"\n✓ Feature dimension confirmed: {X.shape[1]} (expected {expected_dim})")
-    else:
-        print(f"\n⚠️  Feature dimension mismatch: got {X.shape[1]}, expected {expected_dim}")
-    
     #  One-Hot Encode Labels
     print(f"\nOne-hot encoding labels...")
     y_categorical = to_categorical(y, num_classes=26)
@@ -340,13 +214,8 @@ def main():
     # Step 9 - Save Processed Data
     print(f"\nSaving processed data...")
     
-    # Choose output directory based on normalization
-    if NORMALIZE_LANDMARKS:
-        output_dir = SCRIPT_DIR / "processed_data_norm"
-    else:
-        output_dir = SCRIPT_DIR / "processed_data"
-    
     # Create output directory if it doesn't exist
+    output_dir = SCRIPT_DIR / "processed_data"
     output_dir.mkdir(exist_ok=True)
     
     # Save as numpy arrays
@@ -364,20 +233,11 @@ def main():
     print("=" * 60)
     print(f"Dataset Summary:")
     print(f"   • Total samples processed: {len(X)}")
-    if NORMALIZE_LANDMARKS:
-        feature_desc = f"{X.shape[1]} features (normalized, {'with' if KEEP_Z else 'without'} z)"
-    else:
-        feature_desc = f"{X.shape[1]} (21 landmarks x 3 coordinates)"
-    print(f"   • Feature dimensions: {feature_desc}")
+    print(f"   • Feature dimensions: {X.shape[1]} (21 landmarks x 3 coordinates)")
     print(f"   • Number of classes: 26 (A-Z)")
     print(f"   • Training samples: {X_train.shape[0]}")
     print(f"   • Test samples: {X_test.shape[0]}")
     print(f"   • Processing time: {total_time:.2f} seconds")
-    if NORMALIZE_LANDMARKS:
-        print(f"   • Normalization: ENABLED (wrist origin, scale normalized)")
-        print(f"   • Z coordinates: {'KEPT' if KEEP_Z else 'DROPPED'}")
-    if APPLY_AUGMENTATION:
-        print(f"   • Augmentation: ENABLED (rotation, scale, shift)")
     print(f"\nOutput Files:")
     print(f"   • X_train.npy - Training features")
     print(f"   • X_test.npy - Test features")

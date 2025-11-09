@@ -13,17 +13,16 @@ import numpy as np
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout, Conv1D, MaxPooling1D, Flatten, Reshape
 from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau, CSVLogger
+from tensorflow.keras.callbacks import ModelCheckpoint
 from pathlib import Path
 
 # Constants
 CLASS_NAMES = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 NUM_CLASSES = 26
+FEATURE_DIM = 63  # 21 landmarks × 3 coordinates
 
-# Configuration flags
-USE_NORMALIZED = True  # Set to True to use processed_data_norm/, False for processed_data/
+# Model architecture flag
 USE_CONV1D = False  # Set to True to use Conv1D instead of MLP
-KEEP_Z = False  # Must match preprocessing setting (42 vs 63 features)
 
 # Overfit debug mode (set via environment variable OVERFIT_DEBUG=1)
 OVERFIT_DEBUG = os.getenv('OVERFIT_DEBUG', '0') == '1'
@@ -33,20 +32,13 @@ SCRIPT_DIR = Path(__file__).parent.absolute()
 
 
 def load_data():
-    """Load preprocessed data from processed_data or processed_data_norm directory."""
+    """Load preprocessed data from processed_data directory."""
     print("=" * 60)
     print("Loading preprocessed data...")
     print("=" * 60)
     
-    # Choose data directory based on USE_NORMALIZED flag
-    if USE_NORMALIZED:
-        data_dir = SCRIPT_DIR / "processed_data_norm"
-        print("Using normalized data from processed_data_norm/")
-    else:
-        data_dir = SCRIPT_DIR / "processed_data"
-        print("Using original data from processed_data/")
-    
     try:
+        data_dir = SCRIPT_DIR / "processed_data"
         X_train = np.load(str(data_dir / "X_train.npy"))
         X_test = np.load(str(data_dir / "X_test.npy"))
         y_train = np.load(str(data_dir / "y_train.npy"))
@@ -55,13 +47,6 @@ def load_data():
         print(f"✓ Data loaded successfully!")
         print(f"  Training samples: {X_train.shape[0]}")
         print(f"  Test samples: {X_test.shape[0]}")
-        print(f"  Feature dimensions: {X_train.shape[1]}")
-        
-        # Verify feature dimension matches KEEP_Z setting
-        expected_dim = 42 if (USE_NORMALIZED and not KEEP_Z) else 63
-        if X_train.shape[1] != expected_dim:
-            print(f"⚠️  Warning: Feature dimension {X_train.shape[1]} doesn't match expected {expected_dim}")
-            print(f"   (USE_NORMALIZED={USE_NORMALIZED}, KEEP_Z={KEEP_Z})")
         
         return X_train, X_test, y_train, y_test
         
@@ -84,6 +69,8 @@ def sanity_checks(X_train, X_test, y_train, y_test):
     print("\n1. Checking data shapes...")
     assert len(X_train.shape) == 2, f"X_train should be 2D, got shape {X_train.shape}"
     assert len(X_test.shape) == 2, f"X_test should be 2D, got shape {X_test.shape}"
+    assert X_train.shape[1] == FEATURE_DIM, f"X_train feature dim should be {FEATURE_DIM}, got {X_train.shape[1]}"
+    assert X_test.shape[1] == FEATURE_DIM, f"X_test feature dim should be {FEATURE_DIM}, got {X_test.shape[1]}"
     assert y_train.shape[1] == NUM_CLASSES, f"y_train should have {NUM_CLASSES} classes, got {y_train.shape[1]}"
     assert y_test.shape[1] == NUM_CLASSES, f"y_test should have {NUM_CLASSES} classes, got {y_test.shape[1]}"
     print("  ✓ All shape assertions passed")
@@ -147,16 +134,11 @@ def build_mlp_model(input_dim, num_classes):
     return model
 
 
-def build_conv1d_model(input_dim, num_classes, keep_z=False):
-    """Build Conv1D model: Reshape appropriately → Conv1D(64,3,relu) → MaxPool1D(2) → Flatten → Dense(64,relu) → Dense(26,softmax)"""
+def build_conv1d_model(input_dim, num_classes):
+    """Build Conv1D model: Reshape (21,3) → Conv1D(64,3,relu) → MaxPool1D(2) → Flatten → Dense(64,relu) → Dense(26,softmax)"""
     print("\nBuilding Conv1D model...")
-    if keep_z or input_dim == 63:
-        reshape_shape = (21, 3)
-    else:
-        reshape_shape = (21, 2)
-    
     model = Sequential([
-        Reshape(reshape_shape, input_shape=(input_dim,)),
+        Reshape((21, 3), input_shape=(input_dim,)),
         Conv1D(64, 3, activation='relu'),
         MaxPooling1D(2),
         Flatten(),
@@ -166,44 +148,15 @@ def build_conv1d_model(input_dim, num_classes, keep_z=False):
     return model
 
 
-def compute_class_weights(y_train):
-    """Compute class weights if imbalance >15%."""
-    train_classes = np.argmax(y_train, axis=1)
-    class_counts = np.zeros(NUM_CLASSES)
-    for i in range(NUM_CLASSES):
-        class_counts[i] = np.sum(train_classes == i)
-    
-    max_count = np.max(class_counts)
-    min_count = np.min(class_counts)
-    imbalance_ratio = (max_count - min_count) / max_count if max_count > 0 else 0.0
-    
-    if imbalance_ratio > 0.15:
-        print(f"\n⚠️  Class imbalance detected: {imbalance_ratio*100:.1f}%")
-        print("   Computing class weights...")
-        total = np.sum(class_counts)
-        class_weights = {}
-        for i in range(NUM_CLASSES):
-            if class_counts[i] > 0:
-                class_weights[i] = total / (NUM_CLASSES * class_counts[i])
-            else:
-                class_weights[i] = 1.0
-        return class_weights
-    else:
-        print(f"\n✓ Class distribution balanced (imbalance: {imbalance_ratio*100:.1f}%)")
-        return None
-
-
 def train_model(model, X_train, y_train, X_test, y_test, model_name="cnn_baseline"):
     """Train the model with specified parameters."""
     print("\n" + "=" * 60)
     print(f"Training {model_name} model...")
     print("=" * 60)
     
-    # Create models and logs directories
+    # Create models directory
     models_dir = SCRIPT_DIR / "models"
     models_dir.mkdir(exist_ok=True)
-    logs_dir = SCRIPT_DIR / "logs"
-    logs_dir.mkdir(exist_ok=True)
     
     # Compile model
     model.compile(
@@ -216,37 +169,15 @@ def train_model(model, X_train, y_train, X_test, y_test, model_name="cnn_baselin
     print("\nModel architecture:")
     model.summary()
     
-    # Compute class weights if needed
-    class_weights = compute_class_weights(y_train)
-    
     # Setup callbacks
     checkpoint_path = str(models_dir / f"{model_name}.h5")
-    callbacks_list = [
-        ModelCheckpoint(
-            checkpoint_path,
-            save_best_only=True,
-            monitor='val_accuracy',
-            mode='max',
-            verbose=1
-        ),
-        EarlyStopping(
-            monitor='val_accuracy',
-            patience=5,
-            restore_best_weights=True,
-            verbose=1
-        ),
-        ReduceLROnPlateau(
-            monitor='val_loss',
-            factor=0.5,
-            patience=3,
-            min_lr=1e-7,
-            verbose=1
-        ),
-        CSVLogger(
-            str(logs_dir / "experiments.csv"),
-            append=True
-        )
-    ]
+    checkpoint = ModelCheckpoint(
+        checkpoint_path,
+        save_best_only=True,
+        monitor='val_accuracy',
+        mode='max',
+        verbose=1
+    )
     
     # Training parameters
     batch_size = 64
@@ -256,8 +187,6 @@ def train_model(model, X_train, y_train, X_test, y_test, model_name="cnn_baselin
     print(f"  Batch size: {batch_size}")
     print(f"  Epochs: {epochs}")
     print(f"  Validation data: Test set ({X_test.shape[0]} samples)")
-    if class_weights is not None:
-        print(f"  Class weights: ENABLED")
     
     if OVERFIT_DEBUG:
         print(f"\n⚠️  OVERFIT DEBUG MODE ACTIVE")
@@ -275,32 +204,22 @@ def train_model(model, X_train, y_train, X_test, y_test, model_name="cnn_baselin
         batch_size=batch_size,
         epochs=epochs,
         validation_data=(X_test, y_test),
-        callbacks=callbacks_list,
-        class_weight=class_weights,
+        callbacks=[checkpoint],
         verbose=1
     )
     
-    # Find best epoch and accuracy
-    best_epoch = np.argmax(history.history['val_accuracy'])
-    best_val_acc = history.history['val_accuracy'][best_epoch]
-    best_train_acc = history.history['accuracy'][best_epoch]
-    
-    # Print compact training summary
+    # Print final accuracies
     print("\n" + "=" * 60)
     print("Training Summary")
     print("=" * 60)
-    print(f"Best validation accuracy: {best_val_acc:.4f} ({best_val_acc*100:.2f}%)")
-    print(f"Best epoch: {best_epoch + 1}")
-    print(f"Training accuracy at best epoch: {best_train_acc:.4f} ({best_train_acc*100:.2f}%)")
-    
-    final_train_acc = history.history['accuracy'][-1]
-    final_val_acc = history.history['val_accuracy'][-1]
-    print(f"Final training accuracy: {final_train_acc:.4f} ({final_train_acc*100:.2f}%)")
-    print(f"Final test accuracy: {final_val_acc:.4f} ({final_val_acc*100:.2f}%)")
+    train_acc = history.history['accuracy'][-1]
+    val_acc = history.history['val_accuracy'][-1]
+    print(f"Final training accuracy: {train_acc:.4f} ({train_acc*100:.2f}%)")
+    print(f"Final test accuracy: {val_acc:.4f} ({val_acc*100:.2f}%)")
     
     # Overfit debug check
     if OVERFIT_DEBUG:
-        if final_train_acc < 0.95:
+        if train_acc < 0.95:
             print("\n⚠️  WARNING: Overfit debug mode did not achieve near-100% train accuracy!")
             print("   This may indicate issues with preprocessing or labels.")
         else:
@@ -312,7 +231,6 @@ def train_model(model, X_train, y_train, X_test, y_test, model_name="cnn_baselin
     print(f"\n✓ Model saved:")
     print(f"  Best model: {checkpoint_path}")
     print(f"  Final model: {final_model_path}")
-    print(f"  Training log: {logs_dir / 'experiments.csv'}")
     
     return history
 
@@ -351,7 +269,7 @@ def main():
     num_classes = y_train.shape[1]
     
     if USE_CONV1D:
-        model = build_conv1d_model(input_dim, num_classes, keep_z=KEEP_Z)
+        model = build_conv1d_model(input_dim, num_classes)
         model_name = "cnn_baseline_conv1d"
     else:
         model = build_mlp_model(input_dim, num_classes)
