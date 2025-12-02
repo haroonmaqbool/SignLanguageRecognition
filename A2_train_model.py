@@ -10,12 +10,36 @@ Institution: Forman Christian College
 
 import os
 import numpy as np
+import tensorflow as tf
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout, Conv1D, MaxPooling1D, Flatten, Reshape
 from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.callbacks import ModelCheckpoint
+from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
 from pathlib import Path
 import traceback
+
+# GPU Configuration
+def configure_gpu():
+    """Configure TensorFlow to use GPU if available."""
+    gpus = tf.config.list_physical_devices('GPU')
+    
+    if gpus:
+        try:
+            # Enable memory growth to avoid allocating all GPU memory at once
+            for gpu in gpus:
+                tf.config.experimental.set_memory_growth(gpu, True)
+            print(f"✅ GPU detected: {len(gpus)} GPU(s) available")
+            for i, gpu in enumerate(gpus):
+                print(f"   GPU {i}: {gpu.name}")
+            return True
+        except RuntimeError as e:
+            print(f"⚠️  GPU configuration error: {e}")
+            return False
+    else:
+        print("ℹ️  No GPU detected. Training will use CPU.")
+        print("   For faster training, install TensorFlow with GPU support:")
+        print("   pip install tensorflow[and-cuda]")
+        return False
 
 # Constants
 Alphabets = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
@@ -53,7 +77,7 @@ def load_data():
         
     except FileNotFoundError as e:
         print(f" Error: Could not find data file: {e}")
-        print("Please run A1_preprocessing.py first to generate processed data.")
+        print("Please run A2_preprocessing.py first to generate processed data.")
         return None, None, None, None
     except Exception as e:
         print(f" Error loading data: {e}")
@@ -180,13 +204,23 @@ def train_model(model, X_train, y_train, X_test, y_test, model_name="cnn_baselin
         verbose=1
     )
     
+    # Early stopping callback - stops training if validation accuracy doesn't improve
+    early_stopping = EarlyStopping(
+        monitor='val_accuracy',
+        mode='max',
+        patience=10,  # Wait 10 epochs without improvement before stopping
+        verbose=1,
+        restore_best_weights=True  # Restore weights from best epoch
+    )
+    
     # Training parameters
     batch_size = 64
-    epochs = 100 if Overfit else 20
+    epochs = 100  # Increased to 100, but EarlyStopping will stop early if no improvement
     
     print(f"\nTraining parameters:")
     print(f"  Batch size: {batch_size}")
-    print(f"  Epochs: {epochs}")
+    print(f"  Max epochs: {epochs} (EarlyStopping will stop earlier if no improvement)")
+    print(f"  Early stopping patience: 10 epochs")
     print(f"  Validation data: Test set ({X_test.shape[0]} samples)")
     
     if Overfit:
@@ -205,7 +239,7 @@ def train_model(model, X_train, y_train, X_test, y_test, model_name="cnn_baselin
         batch_size=batch_size,
         epochs=epochs,
         validation_data=(X_test, y_test),
-        callbacks=[checkpoint],
+        callbacks=[checkpoint, early_stopping],
         verbose=1
     )
     
@@ -244,6 +278,12 @@ def main():
     print("Team: Haroon, Saria, Azmeer")
     print("Course: COMP-360 - Introduction to Artificial Intelligence")
     print("=" * 60)
+    
+    # Configure GPU
+    print("\n" + "=" * 60)
+    print("Checking GPU availability...")
+    print("=" * 60)
+    gpu_available = configure_gpu()
     
     # Load data
     X_train, X_test, y_train, y_test = load_data()
