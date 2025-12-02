@@ -12,9 +12,10 @@ import os
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, Dropout, Conv1D, MaxPooling1D, Flatten, Reshape
+from tensorflow.keras.layers import Dense, Dropout, Conv1D, MaxPooling1D, Flatten, Reshape, BatchNormalization
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
+from sklearn.utils.class_weight import compute_class_weight
 from pathlib import Path
 import traceback
 
@@ -148,12 +149,19 @@ def sanity_checks(X_train, X_test, y_train, y_test):
 
 
 def build_mlp_model(input_dim, Num_Alphabets):
-    """Build MLP model: Input(63) → Dense(128,relu) → Dropout(0.3) → Dense(64,relu) → Dense(26,softmax)"""
-    print("\nBuilding MLP model")
+    """Build MLP model with enhanced capacity for better K, U, V distinction: 
+    Input(63) → Dense(256,relu) → BatchNorm → Dropout(0.4) → Dense(128,relu) → BatchNorm → Dropout(0.3) → Dense(64,relu) → Dense(26,softmax)"""
+    print("\nBuilding Enhanced MLP model (improved for K, U, V distinction)")
+    
     model = Sequential([
-        Dense(128, activation='relu', input_shape=(input_dim,)),
+        Dense(256, activation='relu', input_shape=(input_dim,)),
+        BatchNormalization(),
+        Dropout(0.4),
+        Dense(128, activation='relu'),
+        BatchNormalization(),
         Dropout(0.3),
         Dense(64, activation='relu'),
+        Dropout(0.2),
         Dense(Num_Alphabets, activation='softmax')
     ])
     return model
@@ -208,19 +216,26 @@ def train_model(model, X_train, y_train, X_test, y_test, model_name="cnn_baselin
     early_stopping = EarlyStopping(
         monitor='val_accuracy',
         mode='max',
-        patience=20,  # Wait 10 epochs without improvement before stopping
+        patience=10,  # Wait 10 epochs without improvement before stopping
         verbose=1,
         restore_best_weights=True  # Restore weights from best epoch
     )
     
     # Training parameters
     batch_size = 64
-    epochs = 200  # Increased to 100, but EarlyStopping will stop early if no improvement
+    # Set epochs based on mode: higher for overfit debug, normal for regular training
+    if Overfit:
+        epochs = 100  # Overfit mode: allow more epochs to memorize small dataset
+    else:
+        epochs = 100  # Normal training: EarlyStopping will stop early if no improvement
     
     print(f"\nTraining parameters:")
     print(f"  Batch size: {batch_size}")
-    print(f"  Max epochs: {epochs} (EarlyStopping will stop earlier if no improvement)")
-    print(f"  Early stopping patience: 20 epochs")
+    print(f"  Max epochs: {epochs}")
+    if not Overfit:
+        print(f"  Early stopping patience: 10 epochs (will stop if no improvement)")
+    else:
+        print(f"  Early stopping: DISABLED in overfit debug mode")
     print(f"  Validation data: Test set ({X_test.shape[0]} samples)")
     
     if Overfit:
@@ -228,19 +243,52 @@ def train_model(model, X_train, y_train, X_test, y_test, model_name="cnn_baselin
         print(f"  Using first 256 training samples only")
         X_train_debug = X_train[:256]
         y_train_debug = y_train[:256]
+        # In overfit mode, disable early stopping to allow full training
+        callbacks_list = [checkpoint]
+        class_weight_dict = None  # No class weights in overfit mode
     else:
         X_train_debug = X_train
         y_train_debug = y_train
+        # Normal mode: use both checkpoint and early stopping
+        callbacks_list = [checkpoint, early_stopping]
+        
+        # Calculate class weights to handle class imbalance (helps with A vs S confusion)
+        print(f"\nCalculating class weights to handle imbalance...")
+        y_train_classes = np.argmax(y_train_debug, axis=1)
+        class_weights = compute_class_weight(
+            'balanced',
+            classes=np.unique(y_train_classes),
+            y=y_train_classes
+        )
+        class_weight_dict = dict(enumerate(class_weights))
+        
+        # Print weights for problematic letters (A, S, K, U, V)
+        k_idx = Alphabets.index('K')
+        u_idx = Alphabets.index('U')
+        v_idx = Alphabets.index('V')
+        print(f"  Class weights (A={class_weight_dict[0]:.3f}, S={class_weight_dict[18]:.3f}, K={class_weight_dict[k_idx]:.3f}, U={class_weight_dict[u_idx]:.3f}, V={class_weight_dict[v_idx]:.3f})")
+        print(f"  Note: Higher weight = more importance during training (helps with K, U, V confusion)")
     
     # Train model
+    # Note: shuffle=True ensures data is randomized each epoch for better training
+    fit_kwargs = {
+        'batch_size': batch_size,
+        'epochs': epochs,
+        'validation_data': (X_test, y_test),
+        'callbacks': callbacks_list,
+        'shuffle': True,  # Shuffle training data each epoch
+        'verbose': 1
+    }
+    
+    # Add class weights if available (helps with imbalanced classes like A vs S)
+    if class_weight_dict is not None:
+        fit_kwargs['class_weight'] = class_weight_dict
+        print(f"\nTraining with class weights to reduce A→S confusion...")
+    
     history = model.fit(
         X_train_debug,
         y_train_debug,
-        batch_size=batch_size,
-        epochs=epochs,
-        validation_data=(X_test, y_test),
-        callbacks=[checkpoint, early_stopping],
-        verbose=1
+        **fit_kwargs
     )
     
     # Print final accuracies
@@ -295,14 +343,8 @@ def main():
         print("\n Sanity checks failed. Exiting")
         return
     
-    # Overfit debug mode: slice first 256 samples
-    if Overfit:
-        print("\n" + "=" * 60)
-        print("  OVERFIT DEBUG MODE ENABLED")
-        print("=" * 60)
-        print("Using first 256 training samples for debugging")
-        X_train = X_train[:256]
-        y_train = y_train[:256]
+    # Overfit debug mode: slice first 256 samples (done in train_model function)
+    # Note: Data slicing is handled in train_model() to avoid duplication
     
     # Build model
     input_dim = X_train.shape[1]

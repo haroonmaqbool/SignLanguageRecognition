@@ -65,8 +65,9 @@ class SignLanguageApp:
         self.hands = self.mp_hands.Hands(
             static_image_mode=True,
             max_num_hands=1,
-            min_detection_confidence=0.7,
-            min_tracking_confidence=0.5
+            min_detection_confidence=0.3,  # Lowered to 0.3 for better A sign detection
+            min_tracking_confidence=0.3,   # Lowered to 0.3 for better tracking
+            model_complexity=1  # Higher complexity for better accuracy
         )
         self.mp_drawing = mp.solutions.drawing_utils
         
@@ -99,15 +100,83 @@ class SignLanguageApp:
             self.current_model = list(self.models.keys())[0]
             print(f"🎯 Default model set to: {self.current_model}")
     
+    def normalize_landmarks(self, landmarks, is_right_hand):
+        """
+        Normalize landmarks to left-hand orientation.
+        For right hand, flip x-coordinates (mirror horizontally).
+        
+        Args:
+            landmarks: Array of 63 values (21 landmarks × 3 coordinates)
+            is_right_hand: Boolean indicating if hand is right hand
+        
+        Returns:
+            Normalized landmarks (always left-hand orientation)
+        """
+        if is_right_hand:
+            # Flip x-coordinates for right hand (mirror horizontally)
+            landmarks_normalized = landmarks.copy()
+            for i in range(0, len(landmarks), 3):  # Every 3rd element is x-coordinate
+                landmarks_normalized[i] = 1.0 - landmarks_normalized[i]  # Flip x
+            return landmarks_normalized
+        return landmarks  # Left hand, no change needed
+    
+    def is_space_gesture(self, landmarks):
+        """
+        Detect if hand gesture is a space gesture (open hand with all fingers extended).
+        
+        Space gesture characteristics:
+        - All fingertips (4, 8, 12, 16, 20) are extended above their respective PIP joints
+        - Hand is relatively open/flat
+        
+        Args:
+            landmarks: Array of 63 values (21 landmarks × 3 coordinates)
+        
+        Returns:
+            Boolean: True if gesture appears to be space
+        """
+        # Landmark indices (MediaPipe hand landmarks):
+        # 4 = Thumb tip, 8 = Index tip, 12 = Middle tip, 16 = Ring tip, 20 = Pinky tip
+        # 3 = Thumb IP, 6 = Index PIP, 10 = Middle PIP, 14 = Ring PIP, 18 = Pinky PIP
+        
+        # Extract y-coordinates (vertical position)
+        # Lower y = higher on screen, higher y = lower on screen
+        thumb_tip_y = landmarks[4 * 3 + 1]  # Index 4, y-coordinate
+        thumb_ip_y = landmarks[3 * 3 + 1]
+        
+        index_tip_y = landmarks[8 * 3 + 1]
+        index_pip_y = landmarks[6 * 3 + 1]
+        
+        middle_tip_y = landmarks[12 * 3 + 1]
+        middle_pip_y = landmarks[10 * 3 + 1]
+        
+        ring_tip_y = landmarks[16 * 3 + 1]
+        ring_pip_y = landmarks[14 * 3 + 1]
+        
+        pinky_tip_y = landmarks[20 * 3 + 1]
+        pinky_pip_y = landmarks[18 * 3 + 1]
+        
+        # Check if all fingertips are extended (tip y < PIP y means tip is above PIP = extended)
+        thumb_extended = thumb_tip_y < thumb_ip_y
+        index_extended = index_tip_y < index_pip_y
+        middle_extended = middle_tip_y < middle_pip_y
+        ring_extended = ring_tip_y < ring_pip_y
+        pinky_extended = pinky_tip_y < pinky_pip_y
+        
+        # Space gesture: All 5 fingers extended (or at least 4 out of 5)
+        fingers_extended = sum([thumb_extended, index_extended, middle_extended, ring_extended, pinky_extended])
+        
+        # If 4 or 5 fingers are extended, likely a space gesture
+        return fingers_extended >= 4
+    
     def extract_landmarks(self, image):
         """
-        Extract hand landmarks from an image.
+        Extract hand landmarks from an image and normalize to left-hand orientation.
         
         Args:
             image: Input image (numpy array)
             
         Returns:
-            numpy.ndarray or None: Extracted landmarks or None if no hand detected
+            numpy.ndarray or None: Extracted landmarks (normalized) or None if no hand detected
         """
         # Convert BGR to RGB
         rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -119,12 +188,26 @@ class SignLanguageApp:
             # Get the first hand
             hand_landmarks = results.multi_hand_landmarks[0]
             
+            # Check if it's a right hand using multi_handedness
+            is_right_hand = False
+            if results.multi_handedness:
+                # MediaPipe returns handedness classification
+                handedness = results.multi_handedness[0]
+                if hasattr(handedness, 'classification') and len(handedness.classification) > 0:
+                    # Check if hand is classified as right hand
+                    is_right_hand = handedness.classification[0].label == 'Right'
+            
             # Extract landmarks
             landmarks = []
             for landmark in hand_landmarks.landmark:
                 landmarks.extend([landmark.x, landmark.y, landmark.z])
             
-            return np.array(landmarks, dtype=np.float32)
+            landmarks = np.array(landmarks, dtype=np.float32)
+            
+            # Normalize to left-hand orientation (flip right hand)
+            landmarks = self.normalize_landmarks(landmarks, is_right_hand)
+            
+            return landmarks
         
         return None
     
@@ -156,6 +239,17 @@ class SignLanguageApp:
             }
         
         try:
+            # Check if this is a space gesture BEFORE model prediction
+            if self.is_space_gesture(landmarks):
+                return {
+                    'prediction': ' ',
+                    'confidence': 0.95,  # High confidence for space detection
+                    'top_predictions': [{'letter': ' ', 'confidence': 0.95}],
+                    'model_used': model_to_use,
+                    'error': None,
+                    'is_space': True
+                }
+            
             # Reshape landmarks for model input
             landmarks_reshaped = landmarks.reshape(1, -1)
             

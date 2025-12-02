@@ -41,8 +41,9 @@ def main():
     hands = mp_hands.Hands(
         static_image_mode=True,
         max_num_hands=1,
-        min_detection_confidence=0.5,
-        min_tracking_confidence=0.5
+        min_detection_confidence=0.3,  # Lowered to capture more U and V samples
+        min_tracking_confidence=0.3,  # Lowered to capture more U and V samples
+        model_complexity=1  # Higher complexity for better detection
     )
     print("MediaPipe Hands initialized successfully!")
     
