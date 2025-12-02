@@ -208,19 +208,19 @@ def train_model(model, X_train, y_train, X_test, y_test, model_name="cnn_baselin
     early_stopping = EarlyStopping(
         monitor='val_accuracy',
         mode='max',
-        patience=10,  # Wait 10 epochs without improvement before stopping
+        patience=20,  # Wait 10 epochs without improvement before stopping
         verbose=1,
         restore_best_weights=True  # Restore weights from best epoch
     )
     
     # Training parameters
     batch_size = 64
-    epochs = 100  # Increased to 100, but EarlyStopping will stop early if no improvement
+    epochs = 200  # Increased to 100, but EarlyStopping will stop early if no improvement
     
     print(f"\nTraining parameters:")
     print(f"  Batch size: {batch_size}")
     print(f"  Max epochs: {epochs} (EarlyStopping will stop earlier if no improvement)")
-    print(f"  Early stopping patience: 10 epochs")
+    print(f"  Early stopping patience: 20 epochs")
     print(f"  Validation data: Test set ({X_test.shape[0]} samples)")
     
     if Overfit:
