@@ -14,7 +14,7 @@ import tensorflow as tf
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout, Conv1D, MaxPooling1D, Flatten, Reshape, BatchNormalization
 from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping
+from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
 from sklearn.utils.class_weight import compute_class_weight
 from pathlib import Path
 import traceback
@@ -167,6 +167,52 @@ def build_mlp_model(input_dim, Num_Alphabets):
     return model
 
 
+def augment_landmarks(landmarks, noise_factor=0.01):
+    """
+    Add small random noise to landmarks to create augmented samples.
+    
+    Args:
+        landmarks: Array of 63 values (21 landmarks × 3 coordinates)
+        noise_factor: Amount of noise to add (0.01 = 1% variation)
+    
+    Returns:
+        Augmented landmarks
+    """
+    noise = np.random.normal(0, noise_factor, landmarks.shape)
+    augmented = landmarks + noise
+    # Clip to valid range [0, 1] for normalized coordinates
+    augmented = np.clip(augmented, 0, 1)
+    return augmented
+
+def augment_training_data(X_train, y_train, augmentation_factor=2):
+    """
+    Augment training data by adding noise to landmarks.
+    
+    Args:
+        X_train: Training features
+        y_train: Training labels
+        augmentation_factor: How many times to augment (2 = double the data)
+    
+    Returns:
+        Augmented X_train, y_train
+    """
+    print(f"  Augmenting data {augmentation_factor}x...")
+    X_augmented = [X_train]
+    y_augmented = [y_train]
+    
+    for i in range(augmentation_factor - 1):
+        X_aug = np.array([augment_landmarks(x) for x in X_train])
+        X_augmented.append(X_aug)
+        y_augmented.append(y_train)
+        print(f"    Augmentation {i+1}/{augmentation_factor-1} complete")
+    
+    X_combined = np.vstack(X_augmented)
+    y_combined = np.vstack(y_augmented)
+    
+    # Shuffle combined data
+    indices = np.random.permutation(len(X_combined))
+    return X_combined[indices], y_combined[indices]
+
 def build_conv1d_model(input_dim, Num_Alphabets):
     """Build Conv1D model: Reshape (21,3) → Conv1D(64,3,relu) → MaxPool1D(2) → Flatten → Dense(64,relu) → Dense(26,softmax)"""
     print("\nBuilding Conv1D model")
@@ -216,9 +262,19 @@ def train_model(model, X_train, y_train, X_test, y_test, model_name="cnn_baselin
     early_stopping = EarlyStopping(
         monitor='val_accuracy',
         mode='max',
-        patience=10,  # Wait 10 epochs without improvement before stopping
+        patience=20,  # Wait 20 epochs without improvement before stopping (increased from 10)
         verbose=1,
         restore_best_weights=True  # Restore weights from best epoch
+    )
+    
+    # Learning rate reduction callback - reduces LR when validation plateaus
+    reduce_lr = ReduceLROnPlateau(
+        monitor='val_accuracy',
+        factor=0.5,  # Reduce LR by half
+        patience=8,  # Wait 8 epochs without improvement
+        min_lr=1e-6,  # Minimum learning rate
+        verbose=1,
+        mode='max'
     )
     
     # Training parameters
@@ -227,13 +283,14 @@ def train_model(model, X_train, y_train, X_test, y_test, model_name="cnn_baselin
     if Overfit:
         epochs = 100  # Overfit mode: allow more epochs to memorize small dataset
     else:
-        epochs = 100  # Normal training: EarlyStopping will stop early if no improvement
+        epochs = 200  # Increased from 100 - EarlyStopping will stop early if no improvement
     
     print(f"\nTraining parameters:")
     print(f"  Batch size: {batch_size}")
     print(f"  Max epochs: {epochs}")
     if not Overfit:
-        print(f"  Early stopping patience: 10 epochs (will stop if no improvement)")
+        print(f"  Early stopping patience: {early_stopping.patience} epochs (will stop if no improvement)")
+        print(f"  Learning rate reduction: Patience {reduce_lr.patience} epochs (factor {reduce_lr.factor})")
     else:
         print(f"  Early stopping: DISABLED in overfit debug mode")
     print(f"  Validation data: Test set ({X_test.shape[0]} samples)")
@@ -249,8 +306,19 @@ def train_model(model, X_train, y_train, X_test, y_test, model_name="cnn_baselin
     else:
         X_train_debug = X_train
         y_train_debug = y_train
-        # Normal mode: use both checkpoint and early stopping
-        callbacks_list = [checkpoint, early_stopping]
+        
+        # Data augmentation for better accuracy
+        print(f"\nApplying data augmentation to improve accuracy...")
+        print(f"  Original training samples: {len(X_train_debug)}")
+        X_train_debug, y_train_debug = augment_training_data(
+            X_train_debug, 
+            y_train_debug, 
+            augmentation_factor=2  # Double the training data
+        )
+        print(f"  Augmented training samples: {len(X_train_debug)}")
+        
+        # Normal mode: use checkpoint, early stopping, and learning rate reduction
+        callbacks_list = [checkpoint, early_stopping, reduce_lr]
         
         # Calculate class weights to handle class imbalance (helps with A vs S confusion)
         print(f"\nCalculating class weights to handle imbalance...")
