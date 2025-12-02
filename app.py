@@ -59,6 +59,8 @@ class SignLanguageApp:
         self.models = {}
         self.alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
         self.current_model = None
+        # Space gesture detection - set to True to enable space gesture detection
+        self.enable_space_gesture = True  # Enabled by default (improved logic distinguishes B from space)
         
         # Initialize MediaPipe
         self.mp_hands = mp.solutions.hands
@@ -122,11 +124,12 @@ class SignLanguageApp:
     
     def is_space_gesture(self, landmarks):
         """
-        Detect if hand gesture is a space gesture (open hand with all fingers extended).
+        Detect if hand gesture is a space gesture (open hand with ALL fingers extended).
         
         Space gesture characteristics:
-        - All fingertips (4, 8, 12, 16, 20) are extended above their respective PIP joints
-        - Hand is relatively open/flat
+        - ALL 4 fingers (index, middle, ring, pinky) extended
+        - Thumb extended/pointing away from palm (not tucked)
+        - Hand is open/flat (distinguishes from B which has thumb tucked against palm)
         
         Args:
             landmarks: Array of 63 values (21 landmarks × 3 coordinates)
@@ -135,16 +138,23 @@ class SignLanguageApp:
             Boolean: True if gesture appears to be space
         """
         # Landmark indices (MediaPipe hand landmarks):
-        # 4 = Thumb tip, 8 = Index tip, 12 = Middle tip, 16 = Ring tip, 20 = Pinky tip
+        # 0 = Wrist, 4 = Thumb tip, 8 = Index tip, 12 = Middle tip, 16 = Ring tip, 20 = Pinky tip
         # 3 = Thumb IP, 6 = Index PIP, 10 = Middle PIP, 14 = Ring PIP, 18 = Pinky PIP
+        # 5 = Index MCP, 9 = Middle MCP, 13 = Ring MCP, 17 = Pinky MCP
         
-        # Extract y-coordinates (vertical position)
-        # Lower y = higher on screen, higher y = lower on screen
-        thumb_tip_y = landmarks[4 * 3 + 1]  # Index 4, y-coordinate
+        # Extract coordinates
+        wrist_x = landmarks[0 * 3 + 0]
+        wrist_y = landmarks[0 * 3 + 1]
+        
+        thumb_tip_x = landmarks[4 * 3 + 0]
+        thumb_tip_y = landmarks[4 * 3 + 1]
+        thumb_ip_x = landmarks[3 * 3 + 0]
         thumb_ip_y = landmarks[3 * 3 + 1]
         
         index_tip_y = landmarks[8 * 3 + 1]
         index_pip_y = landmarks[6 * 3 + 1]
+        index_mcp_x = landmarks[5 * 3 + 0]
+        index_mcp_y = landmarks[5 * 3 + 1]
         
         middle_tip_y = landmarks[12 * 3 + 1]
         middle_pip_y = landmarks[10 * 3 + 1]
@@ -155,18 +165,38 @@ class SignLanguageApp:
         pinky_tip_y = landmarks[20 * 3 + 1]
         pinky_pip_y = landmarks[18 * 3 + 1]
         
-        # Check if all fingertips are extended (tip y < PIP y means tip is above PIP = extended)
-        thumb_extended = thumb_tip_y < thumb_ip_y
+        # Check if 4 fingers (index, middle, ring, pinky) are extended
         index_extended = index_tip_y < index_pip_y
         middle_extended = middle_tip_y < middle_pip_y
         ring_extended = ring_tip_y < ring_pip_y
         pinky_extended = pinky_tip_y < pinky_pip_y
         
-        # Space gesture: All 5 fingers extended (or at least 4 out of 5)
-        fingers_extended = sum([thumb_extended, index_extended, middle_extended, ring_extended, pinky_extended])
+        four_fingers_extended = index_extended and middle_extended and ring_extended and pinky_extended
         
-        # If 4 or 5 fingers are extended, likely a space gesture
-        return fingers_extended >= 4
+        if not four_fingers_extended:
+            return False  # Not space if 4 fingers aren't extended
+        
+        # Check if thumb is extended (not tucked)
+        # Method 1: Thumb tip should be above thumb IP (extended upward)
+        thumb_extended_up = thumb_tip_y < thumb_ip_y
+        
+        # Method 2: Thumb tip should be away from palm (distance from thumb tip to index MCP)
+        # In B sign, thumb is tucked close to palm. In space, thumb is extended away.
+        thumb_to_index_mcp_dist = np.sqrt(
+            (thumb_tip_x - index_mcp_x)**2 + (thumb_tip_y - index_mcp_y)**2
+        )
+        # Normalized distance threshold (thumb extended if far from index MCP)
+        thumb_away_from_palm = thumb_to_index_mcp_dist > 0.15  # Threshold for thumb being away
+        
+        # Method 3: Thumb tip x-position relative to wrist (for left hand, thumb extended = thumb tip to the left)
+        # This is more reliable for detecting thumb extension
+        thumb_to_left = thumb_tip_x < wrist_x  # Thumb extended to the left (away from palm)
+        
+        # Thumb is extended if it's extended upward AND away from palm
+        thumb_extended = thumb_extended_up and (thumb_away_from_palm or thumb_to_left)
+        
+        # Space gesture: 4 fingers extended AND thumb extended (not tucked)
+        return four_fingers_extended and thumb_extended
     
     def extract_landmarks(self, image):
         """
@@ -239,8 +269,8 @@ class SignLanguageApp:
             }
         
         try:
-            # Check if this is a space gesture BEFORE model prediction
-            if self.is_space_gesture(landmarks):
+            # Check if this is a space gesture BEFORE model prediction (only if enabled)
+            if self.enable_space_gesture and self.is_space_gesture(landmarks):
                 return {
                     'prediction': ' ',
                     'confidence': 0.95,  # High confidence for space detection
