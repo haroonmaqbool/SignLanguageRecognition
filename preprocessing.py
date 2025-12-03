@@ -41,9 +41,9 @@ def main():
     hands = mp_hands.Hands(
         static_image_mode=True,
         max_num_hands=1,
-        min_detection_confidence=0.3,  # Lowered to capture more U and V samples
-        min_tracking_confidence=0.3,  # Lowered to capture more U and V samples
-        model_complexity=1  # Higher complexity for better detection
+        min_detection_confidence=0.3,  
+        min_tracking_confidence=0.3, 
+        model_complexity=1  
     )
     print("MediaPipe Hands initialized successfully!")
     
@@ -134,7 +134,7 @@ def main():
             img_path = os.path.join(letter_path, img_file)
             
             try:
-                image = cv2.imread(img_path) # Read image
+                image = cv2.imread(img_path)
                 if image is None:
                     continue
                 
