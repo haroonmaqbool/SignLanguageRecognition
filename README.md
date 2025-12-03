@@ -1,13 +1,15 @@
 ## Sign Language Recognition System (COMP‑360 Project)
-
-> “Can we make a computer actually *read our hands*?”  
-
-**Course:** Introduction to Artificial Intelligence (COMP‑360)  
-**Institution:** Forman Christian College  
-**Team:** Haroon • Saria • Azmeer  
-
-**Idea in one line:**  
-Turn **ASL hand gestures** into **live text and speech** using **MediaPipe**, **CNN models**, and a custom **Flask web app**.
+ 
+ > “Can we make a computer actually *read our hands*?”  
+ 
+ **Course:** Introduction to Artificial Intelligence (COMP‑360)  
+ **Institution:** Forman Christian College  
+ **Team:** Haroon • Saria • Azmeer  
+ 
+ **Idea in one line:**  
+ Turn **ASL hand gestures** into **live text and speech** using **MediaPipe**, **CNN models**, and a custom **Flask web app**.
+ 
+ We trained our models on the public **ASL Alphabet Dataset** (A–Z hand signs) from **Kaggle**, and then converted each image into hand‑landmark features using MediaPipe.
 
 ---
 
@@ -174,8 +176,9 @@ This whole UI is rendered from a single `index.html` file that `app.py` creates 
 ## Model & Dataset Details
 
 - **Dataset**
-  - ASL alphabet dataset (A–Z)
-  - Each image is resized and passed through MediaPipe to extract landmarks
+   - **Name:** ASL Alphabet Dataset (Kaggle)
+   - **Classes:** 26 letters (A–Z), each represented by hand‑gesture images
+   - Each image is resized and passed through MediaPipe to extract landmarks
   - Data saved as `X_train.npy`, `X_test.npy`, `y_train.npy`, `y_test.npy`
 
 - **Model**
