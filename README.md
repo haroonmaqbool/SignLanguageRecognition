@@ -6,25 +6,27 @@ This project is our attempt at answering that question using deep learning + com
 **Course:** Introduction to Artificial Intelligence (COMP‑360)  
 **Institution:** Forman Christian College  
 **Team:** Haroon • Saria • Azmeer  
-**Instructor:** [Instructor Name]
 
-Our system recognizes **American Sign Language (ASL) alphabet** from hand gestures and turns it into **live text (and speech!)** using a combination of **MediaPipe**, **CNN models**, and a **Flask web app** with a modern UI.
-
----
-
-## 🌟 What Our Project Can Do
-
-- **Real‑time ASL Letter Detection** using your webcam  
-- **Beautiful Web Interface** with a landing page and “Real‑Time Detection Studio”  
-- **AI Models** (CNN variants) trained on ASL alphabet data  
-- **Automatic Sentence Building** from continuous gestures  
-- **Text‑to‑Speech**: Speak out the generated sentence with one click  
-- **Hand Landmark Visualization** drawn directly on the camera feed  
-- **Model Switching**: Choose between different trained CNN models
+**Idea in one line:**  
+Turn **ASL hand gestures** into **live text and speech** using **MediaPipe**, **CNN models**, and a custom **Flask web app**.
 
 ---
 
-## 🎥 Quick Demo (How It Feels to Use)
+## What Our Project Can Do
+
+| Feature | Description |
+|---------|-------------|
+| Real‑time ASL Detection | Reads your hand signs from a webcam and predicts the current letter. |
+| Modern Web UI | Animated landing page and a “Real‑Time Detection Studio” for live use. |
+| AI Models | CNN‑based models trained on ASL alphabet landmarks. |
+| Sentence Builder | Stable predictions are appended to form full sentences. |
+| Text‑to‑Speech | One‑click button to speak out the generated sentence using gTTS. |
+| Hand Landmarks | MediaPipe landmarks drawn directly on the video feed for feedback. |
+| Model Switching | Dropdown to switch between different trained CNN model variants. |
+
+---
+
+## Quick Demo — How It Feels to Use
 
 1. Open the web app → a **landing page** with an animated hand (`🤟`) welcomes you.  
 2. Click **“Try Now →”** → you enter the **Real‑Time Detection Studio**.  
@@ -36,7 +38,7 @@ Our system recognizes **American Sign Language (ASL) alphabet** from hand gestur
 
 ---
 
-## 🧱 Tech Stack (Student Friendly)
+## Tech Stack
 
 - **Python 3**
 - **Flask** – backend web framework
@@ -49,7 +51,7 @@ Our system recognizes **American Sign Language (ASL) alphabet** from hand gestur
 
 ---
 
-## 📁 Project Structure (High‑Level)
+## Project Structure (High‑Level)
 
 ```text
 SignLanguageRecognition-SLR/
@@ -72,7 +74,7 @@ SignLanguageRecognition-SLR/
 
 ---
 
-## 🔧 How to Run the Project
+## How to Run the Project
 
 ### 1️⃣ Set Up Environment
 
@@ -121,7 +123,7 @@ Then open your browser and go to: `http://localhost:5000`
 
 ---
 
-## 🧠 How It Works (Short Version)
+## How It Works (Short Version)
 
 - **Step 1 – Detect the Hand**  
   We use **MediaPipe Hands** to detect a single hand and extract **21 landmarks** `(x, y, z)` → flattened into a **63‑dimensional vector**.
@@ -146,7 +148,7 @@ Then open your browser and go to: `http://localhost:5000`
 
 ---
 
-## 💻 Web App Overview (What We Built in `app.py`)
+## Web App Overview (What We Built in `app.py`)
 
 - **Landing Page**
   - Big animated **🤟 hand icon**
@@ -171,7 +173,7 @@ This whole UI is rendered from a single `index.html` file that `app.py` creates 
 
 ---
 
-## 📊 Model & Dataset Details
+## Model & Dataset Details
 
 - **Dataset**
   - ASL alphabet dataset (A–Z)
@@ -195,20 +197,7 @@ All plots and reports are saved under `plots/` and `reports/`.
 
 ---
 
-## 🧪 How We Tested It (Student Perspective)
-
-- Tried different lighting conditions and camera angles  
-- Checked **confusing letters** (e.g. “M” vs “N”, or open palm vs “B”)  
-- Verified that the app handles:
-  - “No hand detected” gracefully
-  - Very large uploaded images (we resize them server‑side)
-  - Model not found / not loaded
-
-We also added simple **health check** and **model list** endpoints so we can quickly debug what’s loaded.
-
----
-
-## 🐛 Common Issues & Fixes
+## Common Issues & Fixes
 
 - **“No trained models found!” in console**
   - Make sure you ran `train_model.py`
@@ -225,7 +214,7 @@ We also added simple **health check** and **model list** endpoints so we can qui
 
 ---
 
-## 🚀 What We Learned
+## What We Learned
 
 - How to go from **raw dataset → trained deep learning model → full web app**  
 - How **MediaPipe landmarks** simplify the problem compared to raw images  
@@ -236,17 +225,7 @@ This was our first time combining **AI + UX/UI + real‑time browser interaction
 
 ---
 
-## 🎯 Future Work
-
-- Add **Pakistani Sign Language (PSL)** support  
-- Move from **letter‑level** to **word/phrase‑level** recognition  
-- Add **user accounts** and history of sentences  
-- Build a **mobile app** version (possibly with a lightweight model)  
-- Improve robustness for different skin tones, backgrounds, and cameras
-
----
-
-## 👥 Team
+## Team
 
 - **Haroon** – Model integration, backend logic, real‑time prediction loop  
 - **Saria** – Dataset preprocessing, experiments, evaluation & reports  
@@ -256,7 +235,7 @@ This was our first time combining **AI + UX/UI + real‑time browser interaction
 
 ---
 
-## 📌 Note
+## Note
 
 This project was built **for educational purposes** as part of **COMP‑360 (Introduction to Artificial Intelligence)** at **Forman Christian College**.  
 You are welcome to explore the code, learn from it, and extend it further for your own projects.
