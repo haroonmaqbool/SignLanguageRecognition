@@ -422,8 +422,8 @@ def main():
     print(" Training Complete!")
     print("=" * 60)
     print("\nNext steps:")
-    print("   1. Run: python A2_evaluate_model.py")
-    print("   2. Run: python A2_app_skeleton.py")
+    print("   1. Run: python evaluate_model.py")
+    print("   2. Run: python app.py")
     print("=" * 60)
 
 
