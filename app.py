@@ -16,7 +16,7 @@ import base64
 import tempfile
 from gtts import gTTS
 
-# Flask imports (optional - only needed for web app mode)
+# Flask imports 
 try:
     from flask import Flask, render_template, request, jsonify
     FLASK_AVAILABLE = True
@@ -25,33 +25,27 @@ except ImportError:
     print("⚠️  Flask not available. Web app mode disabled. Install Flask to enable web app.")
 
 # Constants
-# The model will auto-detect the number of classes from the loaded model
-# Model trained with 29 classes: A-Z + space + del + nothing
-# Model trained with 27 classes: A-Z + space
-# Model trained with 26 classes: A-Z only
 Alphabets = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")  # Will be updated based on loaded model
 Predictions = True # Set to True to enable live predictions
 
 # Web app mode flag - set to True to run Flask web app, False for direct camera mode
-WEB_APP_MODE = True  # Change to False to run direct camera mode
+WEB_APP_MODE = True 
 
-# Get script directory
 Script_dir = Path(__file__).parent.absolute()
 
-# Initialize MediaPipe
 mp_hands = mp.solutions.hands
 mp_drawing = mp.solutions.drawing_utils
 
-# Initialize model (only if Predictions is True)
+# Initialize model 
 model = None
-models_dict = {}  # For web app mode - can store multiple models
+models_dict = {}  # store multiple models if possible
 if Predictions:
     try:
         model_path = Script_dir / "models" / "cnn_baseline.h5"
         if model_path.exists():
             print(f"Loading model from {model_path}")
             model = load_model(str(model_path))
-            models_dict['CNN (Best)'] = model  # Store for web app with clearer name
+            models_dict['CNN (Best)'] = model 
             
             # Auto-detect number of classes from model output shape
             num_classes = model.output.shape[1]
@@ -106,17 +100,17 @@ except:
 # Initialize MediaPipe Hands
 hands = mp_hands.Hands(
     max_num_hands=2,
-    min_detection_confidence=0.3,  # Lowered to 0.3 for better A sign detection
-    min_tracking_confidence=0.3,   # Lowered to 0.3 for better tracking
-    model_complexity=1  # Higher complexity for better accuracy
+    min_detection_confidence=0.3, 
+    min_tracking_confidence=0.3,  
+    model_complexity=1  
 )
 
 # ============================================================================
-# DIRECT CAMERA MODE (Original skeleton logic - UNCHANGED)
+# DIRECT CAMERA MODE 
 # ============================================================================
 def run_camera_mode():
-    """Run the original camera detection mode - EXACTLY as skeleton."""
-    # Initialize webcam
+    """Run the camera detection mode """
+
     webcam = cv2.VideoCapture(0)
     if not webcam.isOpened():
         print("✗ Error: Could not open webcam.")
@@ -137,8 +131,7 @@ def run_camera_mode():
         if not success:
             print("Error: Failed to read frame from webcam.")
             break
-        
-        # Convert BGR to RGB for MediaPipe
+
         img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         
         # Process with MediaPipe
@@ -147,7 +140,7 @@ def run_camera_mode():
         # Convert back to BGR for OpenCV display
         img = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
         
-        # Draw hand landmarks
+        # Drawing hand landmarks
         if results.multi_hand_landmarks:
             for hand_landmarks in results.multi_hand_landmarks:
                 mp_drawing.draw_landmarks(
@@ -181,17 +174,16 @@ def run_camera_mode():
                 if is_right_hand:
                     for i in range(0, 63, 3):  # Every 3rd element is x-coordinate
                         landmarks_array[i] = 1.0 - landmarks_array[i]  # Flip x
-                
-                # Reshape for model input: (1, 63)
+
                 landmarks_array = landmarks_array.reshape(1, 63)
                 
-                # Make prediction using model (model handles all classes including space, del, nothing)
+                # Make prediction using model 
                 preds = model.predict(landmarks_array, verbose=0)
                 predicted_class_idx = np.argmax(preds, axis=1)[0]
                 confidence = preds[0][predicted_class_idx]
                 predicted_letter = Alphabets[predicted_class_idx]
                 
-                # Format display text (show "SPACE" for space character, "DEL" for delete, etc.)
+                # Format display text 
                 if predicted_letter == ' ':
                     display_text = "SPACE"
                 elif predicted_letter == "DEL":
@@ -245,17 +237,17 @@ if FLASK_AVAILABLE and WEB_APP_MODE:
     app = Flask(__name__)
     app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
     
-    # Always use the best model (CNN (Best) if available, otherwise CNN (Final))
-    if 'CNN (Best)' in models_dict:
-        current_model_name = 'CNN (Best)'
-    elif 'CNN (Final)' in models_dict:
+    # Always use the best model (CNN (Final) if available, otherwise CNN (Best))
+    if 'CNN (Final)' in models_dict:
         current_model_name = 'CNN (Final)'
+    elif 'CNN (Best)' in models_dict:
+        current_model_name = 'CNN (Best)'
     else:
         current_model_name = list(models_dict.keys())[0] if models_dict else None
     
     def extract_landmarks_from_image(image):
         """
-        Extract landmarks from image - EXACTLY matching skeleton logic.
+        Extract landmarks from image 
         """
         # Convert BGR to RGB for MediaPipe
         rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -294,7 +286,7 @@ if FLASK_AVAILABLE and WEB_APP_MODE:
     
     def predict_gesture(landmarks_array, model_to_use=None):
         """
-        Predict gesture from landmarks - EXACTLY matching skeleton logic.
+        Predict gesture from landmarks 
         """
         if landmarks_array is None:
             return {
@@ -315,7 +307,7 @@ if FLASK_AVAILABLE and WEB_APP_MODE:
             # Reshape for model input: (1, 63)
             landmarks_array = landmarks_array.reshape(1, 63)
             
-            # Make prediction using model (model handles all classes including space, del, nothing)
+            # Make prediction using model 
             preds = models_dict[model_to_use].predict(landmarks_array, verbose=0)
             predicted_class_idx = np.argmax(preds, axis=1)[0]
             confidence = preds[0][predicted_class_idx]
@@ -346,7 +338,7 @@ if FLASK_AVAILABLE and WEB_APP_MODE:
             }
     
     def draw_landmarks_on_image(image, hand_landmarks):
-        """Draw landmarks on image - matching skeleton style."""
+        """Draw landmarks on image"""
         if hand_landmarks is None:
             return image
         
@@ -377,7 +369,7 @@ if FLASK_AVAILABLE and WEB_APP_MODE:
             if file.filename == '':
                 return jsonify({'error': 'No image file selected'}), 400
             
-            # Always use the best model (no user selection)
+            # Always use the best model 
             model_name = current_model_name
             
             # Read image
@@ -396,10 +388,10 @@ if FLASK_AVAILABLE and WEB_APP_MODE:
                 new_width = int(width * scale)
                 image = cv2.resize(image, (new_width, new_height))
             
-            # Extract landmarks - EXACTLY matching skeleton logic
+            # Extract landmarks 
             landmarks_array, hand_landmarks_obj = extract_landmarks_from_image(image)
             
-            # Make prediction - EXACTLY matching skeleton logic
+            # Make prediction 
             result = predict_gesture(landmarks_array, model_name)
             
             # Draw landmarks on image if requested
@@ -1657,7 +1649,7 @@ if FLASK_AVAILABLE and WEB_APP_MODE:
         with open('templates/index.html', 'w', encoding='utf-8') as f:
             f.write(html_content)
         
-        print("✅ HTML template created successfully!")
+        print(" HTML template created successfully!")
     
     def main_web_app():
         """Main function to run Flask web application."""
@@ -1674,16 +1666,16 @@ if FLASK_AVAILABLE and WEB_APP_MODE:
         
         # Check if models are loaded
         if not models_dict:
-            print("❌ No trained models found!")
+            print(" No trained models found!")
             print("Please run train_model.py first to train the model.")
             return
         
-        print(f"✅ Web application initialized successfully!")
-        print(f"📊 Available models: {list(models_dict.keys())}")
-        print(f"🎯 Current model: {current_model_name}")
-        print(f"\n🌐 Starting Flask web server...")
-        print(f"📱 Open your browser and go to: http://localhost:5000")
-        print(f"🛑 Press Ctrl+C to stop the server")
+        print(f" Web application initialized successfully!")
+        print(f" Available models: {list(models_dict.keys())}")
+        print(f" Current model: {current_model_name}")
+        print(f"\n Starting Flask web server...")
+        print(f" Open your browser and go to: http://localhost:5000")
+        print(f" Press Ctrl+C to stop the server")
         print("=" * 60)
         
         # Run Flask app
@@ -1697,13 +1689,13 @@ if __name__ == "__main__":
         try:
             main_web_app()
         except KeyboardInterrupt:
-            print("\n\n⚠️  Web application stopped by user.")
+            print("\n\n  Web application stopped by user.")
             print("Exiting gracefully...")
         except Exception as e:
-            print(f"\n❌ An error occurred: {e}")
+            print(f"\n An error occurred: {e}")
             print("Please check your setup and try again.")
     else:
         if WEB_APP_MODE and not FLASK_AVAILABLE:
-            print("⚠️  Flask not available. Running in camera mode instead.")
-        # Run direct camera mode (original skeleton behavior)
+            print("  Flask not available. Running in camera mode instead.")
+        # Run direct camera mode 
         run_camera_mode()
