@@ -78,7 +78,8 @@ def main():
     print(f"Dataset found at: {train_path}")
     
     # Verify the dataset structure
-    alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    # Include space, del, and nothing as classes (29 classes total: A-Z + space + del + nothing)
+    alphabet = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ") + ["space", "del", "nothing"]
     missing_letters = []
     for letter in alphabet:
         letter_path = os.path.join(train_path, letter)
@@ -86,20 +87,20 @@ def main():
             missing_letters.append(letter)
     
     if missing_letters:
-        print(f"Warning: Missing folders for letters: {missing_letters}")
-        print("The script will continue with available letters only.")
+        print(f"Warning: Missing folders for: {missing_letters}")
+        print("The script will continue with available classes only.")
     else:
-        print("All letter folders (A-Z) found in dataset!")
+        print("All folders found: A-Z + space + del + nothing (29 classes total)!")
     
     # Step 4 - Initialize Data Storage
     print("\nInitializing data storage...")
     X = []  # Feature vectors (hand landmarks)
-    y = []  # Labels (A-Z)
+    y = []  # Labels (A-Z + space + del + nothing)
     
-    alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    alphabet = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ") + ["space", "del", "nothing"]
     label_mapping = {letter: idx for idx, letter in enumerate(alphabet)}
     
-    print(f"Data storage initialized for {len(alphabet)} classes")
+    print(f"Data storage initialized for {len(alphabet)} classes (A-Z + space + del + nothing)")
     
     # Step 5 - Process Images and Extract Landmarks
     print("\nProcessing images and extracting hand landmarks...")
@@ -194,7 +195,8 @@ def main():
     
     #  One-Hot Encode Labels
     print(f"\nOne-hot encoding labels...")
-    y_categorical = to_categorical(y, num_classes=26)
+    num_classes = len(alphabet)  # 29 classes (A-Z + space + del + nothing)
+    y_categorical = to_categorical(y, num_classes=num_classes)
     
     print(f"Labels one-hot encoded!")
     print(f"   One-hot encoded labels shape: {y_categorical.shape}")
@@ -235,7 +237,7 @@ def main():
     print(f"Dataset Summary:")
     print(f"   • Total samples processed: {len(X)}")
     print(f"   • Feature dimensions: {X.shape[1]} (21 landmarks x 3 coordinates)")
-    print(f"   • Number of classes: 26 (A-Z)")
+    print(f"   • Number of classes: {num_classes} (A-Z + space + del + nothing)")
     print(f"   • Training samples: {X_train.shape[0]}")
     print(f"   • Test samples: {X_test.shape[0]}")
     print(f"   • Processing time: {total_time:.2f} seconds")

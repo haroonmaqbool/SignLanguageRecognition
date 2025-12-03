@@ -48,8 +48,11 @@ def check_dataset_structure():
     
     found_letters = []
     missing_letters = []
+    found_special = []
+    missing_special = []
     total_images = 0
     
+    # Check A-Z letters
     for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
         letter_path = Path(train_path) / letter
         
@@ -66,26 +69,53 @@ def check_dataset_structure():
             missing_letters.append(letter)
             print(f"   [MISSING] {letter}: Missing folder")
     
+    # Check special classes: space, del, nothing
+    print(f"\nChecking special classes (space, del, nothing)...")
+    special_classes = ["space", "del", "nothing"]
+    for special in special_classes:
+        special_path = Path(train_path) / special
+        
+        if special_path.exists():
+            image_count = sum(1 for _ in special_path.glob("*.[jJ][pP][gG]")) + \
+                         sum(1 for _ in special_path.glob("*.[jJ][pP][eE][gG]")) + \
+                         sum(1 for _ in special_path.glob("*.[pP][nN][gG]"))
+            
+            total_images += image_count
+            found_special.append(special)
+            print(f"   [OK] {special}: {image_count} images")
+        else:
+            missing_special.append(special)
+            print(f"   [MISSING] {special}: Missing folder")
+    
     # Print summary
     print(f"\nDataset Summary:")
-    print(f"   - Found letters: {len(found_letters)}/26")
-    print(f"   - Missing letters: {len(missing_letters)}")
+    print(f"   - Found letters (A-Z): {len(found_letters)}/26")
+    if missing_letters:
+        print(f"   - Missing letters: {', '.join(missing_letters)}")
+    print(f"   - Found special classes: {len(found_special)}/3 (space, del, nothing)")
+    if missing_special:
+        print(f"   - Missing special classes: {', '.join(missing_special)}")
+    print(f"   - Total classes found: {len(found_letters) + len(found_special)}/29")
     print(f"   - Total images: {total_images}")
     
     if missing_letters:
         print(f"   - Missing letters: {', '.join(missing_letters)}")
     
     # Check if dataset is ready
-    is_ready = len(found_letters) >= 20
+    total_classes = len(found_letters) + len(found_special)
+    is_ready = len(found_letters) >= 20  # At least 20 letters required
     
     if is_ready:
         print(f"\n[SUCCESS] Dataset is ready for preprocessing!")
-        print(f"   - You have {len(found_letters)} letters which is sufficient")
+        print(f"   - You have {len(found_letters)} letters (A-Z) which is sufficient")
+        if found_special:
+            print(f"   - You have {len(found_special)} special classes: {', '.join(found_special)}")
         print(f"   - Total of {total_images} images available")
+        print(f"   - Total classes: {total_classes} (will train on {total_classes} classes)")
         print(f"\nNext steps:")
-        print(f"   1. Run: python preprocessing.py")
-        print(f"   2. Run: python train_model.py")
-        print(f"   3. Run: python evaluate_model.py")
+        print(f"   1. Run: python A2_preprocessing.py")
+        print(f"   2. Run: python A2_train_model.py")
+        print(f"   3. Run: python A2_evaluate_model.py")
     else:
         print(f"\n[WARNING] Dataset may not be complete enough for training")
         print(f"   - You only have {len(found_letters)} letters")
@@ -109,6 +139,18 @@ Expected Dataset Structure:
        |   +-- ...
        +-- C/
        +-- ... (up to Z)
+       +-- space/
+       |   +-- space1.jpg
+       |   +-- space2.jpg
+       |   +-- ...
+       +-- del/
+       |   +-- del1.jpg
+       |   +-- del2.jpg
+       |   +-- ...
+       +-- nothing/
+       |   +-- nothing1.jpg
+       |   +-- nothing2.jpg
+       |   +-- ...
 
 If your dataset structure is different:
    1. Rename folders to match A, B, C, ..., Z

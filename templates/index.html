@@ -149,6 +149,10 @@
         let lastPrediction = '';
         let predictionCount = 0;
         let currentAudio = null;
+        let firstPredictionTime = null;  // Track when we first saw this prediction
+        const MIN_CONFIDENCE = 0.85;  // Higher confidence threshold (85%)
+        const REQUIRED_CONSECUTIVE = 6;  // Need 6 consecutive predictions (1.2 seconds at 200ms intervals)
+        const MIN_TIME_MS = 1000;  // Minimum 1 second of stable prediction before accepting
         
         function showApp() {
             document.getElementById('landingPage').style.display = 'none';
@@ -191,6 +195,7 @@
             currentSentence = '';
             lastPrediction = '';
             predictionCount = 0;
+            firstPredictionTime = null;
             document.getElementById('sentenceDisplay').textContent = 'Start making gestures...';
             document.getElementById('ttsButton').disabled = true;
         }
@@ -218,26 +223,68 @@
                             };
                             img.src = 'data:image/jpeg;base64,' + data.image_with_landmarks;
                         }
-                        if (data.prediction) {
-                            // Display "SPACE" for space gestures, otherwise show the letter
-                            const displayText = (data.is_space || data.prediction === ' ') ? 'SPACE' : data.prediction;
-                            document.getElementById('currentLetter').textContent = displayText;
+                            if (data.prediction) {
+                                // Format display text (model handles space, del, nothing directly)
+                                let displayText = data.prediction;
+                                if (data.prediction === ' ') {
+                                    displayText = 'SPACE';
+                                } else if (data.prediction === 'DEL') {
+                                    displayText = 'DEL';
+                                } else if (data.prediction === 'NONE') {
+                                    displayText = 'NONE';
+                                }
+                                document.getElementById('currentLetter').textContent = displayText;
                             const confidencePercent = (data.confidence * 100).toFixed(1);
                             document.getElementById('confidence').textContent = `Confidence: ${confidencePercent}%`;
-                            if (data.confidence > 0.7) {
+                            
+                            // Only consider predictions with high confidence
+                            if (data.confidence >= MIN_CONFIDENCE) {
+                                // Check if this is the same prediction as before
                                 if (data.prediction === lastPrediction) {
+                                    // Same prediction - increment counter
                                     predictionCount++;
-                                    if (predictionCount >= 3) {
+                                    
+                                    // Track when we first saw this prediction
+                                    if (firstPredictionTime === null) {
+                                        firstPredictionTime = Date.now();
+                                    }
+                                    
+                                    // Check if we've met both requirements:
+                                    // 1. Enough consecutive predictions
+                                    // 2. Enough time has passed (verification period)
+                                    const timeElapsed = Date.now() - firstPredictionTime;
+                                    
+                                    if (predictionCount >= REQUIRED_CONSECUTIVE && timeElapsed >= MIN_TIME_MS) {
+                                        // Verified! Accept the letter
                                         currentSentence += data.prediction;
                                         document.getElementById('sentenceDisplay').textContent = currentSentence;
                                         document.getElementById('ttsButton').disabled = false;
+                                        
+                                        // Reset for next prediction
                                         predictionCount = 0;
                                         lastPrediction = '';
+                                        firstPredictionTime = null;
                                     }
                                 } else {
+                                    // Different prediction - reset everything
                                     lastPrediction = data.prediction;
                                     predictionCount = 1;
+                                    firstPredictionTime = Date.now();
                                 }
+                            } else {
+                                // Confidence too low - reset if we were tracking something
+                                if (lastPrediction !== '') {
+                                    lastPrediction = '';
+                                    predictionCount = 0;
+                                    firstPredictionTime = null;
+                                }
+                            }
+                        } else {
+                            // No prediction - reset tracking
+                            if (lastPrediction !== '') {
+                                lastPrediction = '';
+                                predictionCount = 0;
+                                firstPredictionTime = null;
                             }
                         }
                     } catch (err) {

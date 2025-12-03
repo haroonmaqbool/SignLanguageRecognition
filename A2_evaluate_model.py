@@ -14,9 +14,9 @@ from tensorflow.keras.models import load_model
 from pathlib import Path
 import traceback
 
-# Constants
-Alphabets = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
-Num_Alphabets = 26
+# Constants - Will be auto-detected from model/data
+Alphabets = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")  # Default, will be updated
+Num_Alphabets = 26  # Default, will be auto-detected
 
 # Get script directory
 Script_dir = Path(__file__).parent.absolute()
@@ -24,6 +24,8 @@ Script_dir = Path(__file__).parent.absolute()
 
 def load_test_data():
     """Load test data for evaluation."""
+    global Alphabets, Num_Alphabets
+    
     print("=" * 60)
     print("Loading test data")
     print("=" * 60)
@@ -33,10 +35,31 @@ def load_test_data():
         X_test = np.load(str(data_dir / "X_test.npy"))
         y_test = np.load(str(data_dir / "y_test.npy"))
         
+        # Auto-detect number of classes from data
+        Num_Alphabets = y_test.shape[1]
+        
+        # Update Alphabets list based on number of classes
+        if Num_Alphabets == 29:
+            # Model trained with A-Z + space + del + nothing
+            Alphabets = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ") + [" ", "DEL", "NONE"]
+            print(f"   Detected 29 classes: A-Z + space + del + nothing")
+        elif Num_Alphabets == 27:
+            # Model trained with A-Z + space
+            Alphabets = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ") + [" "]
+            print(f"   Detected 27 classes: A-Z + space")
+        elif Num_Alphabets == 26:
+            # Model trained with A-Z only
+            Alphabets = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+            print(f"   Detected 26 classes: A-Z only")
+        else:
+            # Unknown number, use default
+            Alphabets = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")[:Num_Alphabets] if Num_Alphabets <= 26 else list("ABCDEFGHIJKLMNOPQRSTUVWXYZ") + [" "] * (Num_Alphabets - 26)
+            print(f"   Warning: Unknown number of classes ({Num_Alphabets}), using default mapping")
+        
         print(f"Test data loaded successfully!")
         print(f"Test samples: {X_test.shape[0]}")
         print(f"Feature dimensions: {X_test.shape[1]}")
-        print(f"Number of classes: {y_test.shape[1]}")
+        print(f"Number of classes: {Num_Alphabets}")
         
         return X_test, y_test
         
@@ -50,7 +73,8 @@ def load_test_data():
 
 
 def load_trained_models():
-    """Load the trained models."""
+    """Load the trained models and verify class count matches."""
+    global Alphabets, Num_Alphabets
     print("\n" + "=" * 60)
     print("Loading trained models")
     print("=" * 60)
@@ -107,24 +131,29 @@ def evaluate_model(model, X_test, y_test, model_name):
     
     # Plot confusion matrix
     print("\nGenerating confusion matrix plot")
-    plt.figure(figsize=(14, 12))
+    # Adjust figure size based on number of classes (larger for 29 classes)
+    fig_size = (16, 14) if Num_Alphabets > 26 else (14, 12)
+    plt.figure(figsize=fig_size)
     plt.imshow(cm, interpolation='nearest', cmap=plt.cm.Blues)
-    plt.title(f'Confusion Matrix - {model_name}', fontsize=16, fontweight='bold')
+    plt.title(f'Confusion Matrix - {model_name} ({Num_Alphabets} classes)', fontsize=16, fontweight='bold')
     plt.colorbar()
     
     # Add labels
     tick_marks = np.arange(len(Alphabets))
-    plt.xticks(tick_marks, Alphabets, rotation=45)
-    plt.yticks(tick_marks, Alphabets)
+    # Adjust font size based on number of classes
+    font_size = 7 if Num_Alphabets > 26 else 8
+    plt.xticks(tick_marks, Alphabets, rotation=45, fontsize=font_size)
+    plt.yticks(tick_marks, Alphabets, fontsize=font_size)
     
     # Add text annotations
     thresh = cm.max() / 2.0
+    annotation_font_size = 6 if Num_Alphabets > 26 else 8
     for i in range(len(Alphabets)):
         for j in range(len(Alphabets)):
             plt.text(j, i, format(cm[i, j], 'd'),
                     horizontalalignment="center",
                     color="white" if cm[i, j] > thresh else "black",
-                    fontsize=8)
+                    fontsize=annotation_font_size)
     
     plt.ylabel('True Label', fontsize=12)
     plt.xlabel('Predicted Label', fontsize=12)

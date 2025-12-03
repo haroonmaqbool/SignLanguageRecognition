@@ -44,8 +44,10 @@ def configure_gpu():
 
 
 # Constants
-Alphabets = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
-Num_Alphabets = 26
+# A-Z (26) + space + del + nothing = 29 classes total
+# Display mapping: space=" ", del="DEL", nothing="NONE"
+Alphabets = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ") + [" ", "DEL", "NONE"]
+Num_Alphabets = 29  # 26 letters + space + del + nothing = 29 classes
 Dimensions = 63  # 21 landmarks × 3 coordinates
 
 # Model architecture flag
@@ -274,7 +276,7 @@ def build_mlp_model(input_dim, Num_Alphabets):
     print(f"   Input → Dense(256) → BN → Dropout(0.4)")
     print(f"   → Dense(128) → BN → Dropout(0.4)")
     print(f"   → Dense(64) → Dropout(0.3)")
-    print(f"   → Output(26)")
+    print(f"   → Output({Num_Alphabets})")
     
     return model
 

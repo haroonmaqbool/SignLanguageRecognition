@@ -25,88 +25,15 @@ except ImportError:
     print("⚠️  Flask not available. Web app mode disabled. Install Flask to enable web app.")
 
 # Constants
-Alphabets = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+# The model will auto-detect the number of classes from the loaded model
+# Model trained with 29 classes: A-Z + space + del + nothing
+# Model trained with 27 classes: A-Z + space
+# Model trained with 26 classes: A-Z only
+Alphabets = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")  # Will be updated based on loaded model
 Predictions = True # Set to True to enable live predictions
-EnableSpaceGesture = True  # Set to True to enable space gesture detection (improved logic distinguishes B from space)
 
 # Web app mode flag - set to True to run Flask web app, False for direct camera mode
 WEB_APP_MODE = True  # Change to False to run direct camera mode
-
-def is_space_gesture(landmarks):
-    """
-    Detect if hand gesture is a space gesture (open hand with ALL fingers extended).
-    
-    Space gesture characteristics:
-    - ALL 4 fingers (index, middle, ring, pinky) extended
-    - Thumb extended/pointing away from palm (not tucked)
-    - Hand is open/flat (distinguishes from B which has thumb tucked against palm)
-    
-    Args:
-        landmarks: Array of 63 values (21 landmarks × 3 coordinates)
-    
-    Returns:
-        Boolean: True if gesture appears to be space
-    """
-    # Landmark indices (MediaPipe hand landmarks):
-    # 0 = Wrist, 4 = Thumb tip, 8 = Index tip, 12 = Middle tip, 16 = Ring tip, 20 = Pinky tip
-    # 3 = Thumb IP, 6 = Index PIP, 10 = Middle PIP, 14 = Ring PIP, 18 = Pinky PIP
-    # 5 = Index MCP, 9 = Middle MCP, 13 = Ring MCP, 17 = Pinky MCP
-    
-    # Extract coordinates
-    wrist_x = landmarks[0 * 3 + 0]
-    wrist_y = landmarks[0 * 3 + 1]
-    
-    thumb_tip_x = landmarks[4 * 3 + 0]
-    thumb_tip_y = landmarks[4 * 3 + 1]
-    thumb_ip_x = landmarks[3 * 3 + 0]
-    thumb_ip_y = landmarks[3 * 3 + 1]
-    
-    index_tip_y = landmarks[8 * 3 + 1]
-    index_pip_y = landmarks[6 * 3 + 1]
-    index_mcp_x = landmarks[5 * 3 + 0]
-    index_mcp_y = landmarks[5 * 3 + 1]
-    
-    middle_tip_y = landmarks[12 * 3 + 1]
-    middle_pip_y = landmarks[10 * 3 + 1]
-    
-    ring_tip_y = landmarks[16 * 3 + 1]
-    ring_pip_y = landmarks[14 * 3 + 1]
-    
-    pinky_tip_y = landmarks[20 * 3 + 1]
-    pinky_pip_y = landmarks[18 * 3 + 1]
-    
-    # Check if 4 fingers (index, middle, ring, pinky) are extended
-    index_extended = index_tip_y < index_pip_y
-    middle_extended = middle_tip_y < middle_pip_y
-    ring_extended = ring_tip_y < ring_pip_y
-    pinky_extended = pinky_tip_y < pinky_pip_y
-    
-    four_fingers_extended = index_extended and middle_extended and ring_extended and pinky_extended
-    
-    if not four_fingers_extended:
-        return False  # Not space if 4 fingers aren't extended
-    
-    # Check if thumb is extended (not tucked)
-    # Method 1: Thumb tip should be above thumb IP (extended upward)
-    thumb_extended_up = thumb_tip_y < thumb_ip_y
-    
-    # Method 2: Thumb tip should be away from palm (distance from thumb tip to index MCP)
-    # In B sign, thumb is tucked close to palm. In space, thumb is extended away.
-    thumb_to_index_mcp_dist = np.sqrt(
-        (thumb_tip_x - index_mcp_x)**2 + (thumb_tip_y - index_mcp_y)**2
-    )
-    # Normalized distance threshold (thumb extended if far from index MCP)
-    thumb_away_from_palm = thumb_to_index_mcp_dist > 0.15  # Threshold for thumb being away
-    
-    # Method 3: Thumb tip x-position relative to wrist (for left hand, thumb extended = thumb tip to the left)
-    # This is more reliable for detecting thumb extension
-    thumb_to_left = thumb_tip_x < wrist_x  # Thumb extended to the left (away from palm)
-    
-    # Thumb is extended if it's extended upward AND away from palm
-    thumb_extended = thumb_extended_up and (thumb_away_from_palm or thumb_to_left)
-    
-    # Space gesture: 4 fingers extended AND thumb extended (not tucked)
-    return four_fingers_extended and thumb_extended
 
 # Get script directory
 Script_dir = Path(__file__).parent.absolute()
@@ -125,7 +52,29 @@ if Predictions:
             print(f"Loading model from {model_path}")
             model = load_model(str(model_path))
             models_dict['CNN (Best)'] = model  # Store for web app with clearer name
-            print("   Model loaded successfully!")
+            
+            # Auto-detect number of classes from model output shape
+            num_classes = model.output.shape[1]
+            print(f"   Model loaded successfully!")
+            print(f"   Detected {num_classes} classes in model")
+            
+            # Update Alphabets list based on number of classes
+            if num_classes == 29:
+                # Model trained with A-Z + space + del + nothing
+                Alphabets = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ") + [" ", "DEL", "NONE"]
+                print(f"   Using 29 classes: A-Z + space + del + nothing")
+            elif num_classes == 27:
+                # Model trained with A-Z + space
+                Alphabets = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ") + [" "]
+                print(f"   Using 27 classes: A-Z + space")
+            elif num_classes == 26:
+                # Model trained with A-Z only
+                Alphabets = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+                print(f"   Using 26 classes: A-Z only")
+            else:
+                # Unknown number of classes, use default
+                print(f"   Warning: Unknown number of classes ({num_classes}), using default A-Z")
+                Alphabets = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")[:num_classes] if num_classes <= 26 else list("ABCDEFGHIJKLMNOPQRSTUVWXYZ") + [" "] * (num_classes - 26)
         else:
             print(f"  Model not found: {model_path}")
             print("   Please run train_model.py first to train the model.")
@@ -142,6 +91,15 @@ try:
     if model_last_path.exists():
         models_dict['CNN (Final)'] = load_model(str(model_last_path))
         print(f"   Additional model CNN (Final) loaded!")
+        # Ensure Alphabets is updated if this model has different number of classes
+        if models_dict['CNN (Final)'].output.shape[1] != len(Alphabets):
+            num_classes = models_dict['CNN (Final)'].output.shape[1]
+            if num_classes == 29:
+                Alphabets = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ") + [" ", "DEL", "NONE"]
+            elif num_classes == 27:
+                Alphabets = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ") + [" "]
+            elif num_classes == 26:
+                Alphabets = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 except:
     pass
 
@@ -227,37 +185,33 @@ def run_camera_mode():
                 # Reshape for model input: (1, 63)
                 landmarks_array = landmarks_array.reshape(1, 63)
                 
-                # Check if this is a space gesture BEFORE model prediction (only if enabled)
-                if EnableSpaceGesture and is_space_gesture(landmarks_array[0]):
-                    # Space gesture detected
-                    text = "Predicted: SPACE (Space gesture detected)"
-                    cv2.putText(
-                        img,
-                        text,
-                        (10, 30),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        1,
-                        (0, 255, 255),  # Yellow color for space
-                        2,
-                    )
+                # Make prediction using model (model handles all classes including space, del, nothing)
+                preds = model.predict(landmarks_array, verbose=0)
+                predicted_class_idx = np.argmax(preds, axis=1)[0]
+                confidence = preds[0][predicted_class_idx]
+                predicted_letter = Alphabets[predicted_class_idx]
+                
+                # Format display text (show "SPACE" for space character, "DEL" for delete, etc.)
+                if predicted_letter == ' ':
+                    display_text = "SPACE"
+                elif predicted_letter == "DEL":
+                    display_text = "DEL"
+                elif predicted_letter == "NONE":
+                    display_text = "NONE"
                 else:
-                    # Make prediction for regular letters
-                    preds = model.predict(landmarks_array, verbose=0)
-                    predicted_class_idx = np.argmax(preds, axis=1)[0]
-                    confidence = preds[0][predicted_class_idx]
-                    predicted_letter = Alphabets[predicted_class_idx]
-                    
-                    # Overlay prediction on frame
-                    text = f"Predicted: {predicted_letter} ({confidence:.2f})"
-                    cv2.putText(
-                        img,
-                        text,
-                        (10, 30),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        1,
-                        (0, 255, 0),  # Green color for letters
-                        2,
-                    )
+                    display_text = predicted_letter
+                
+                # Overlay prediction on frame
+                text = f"Predicted: {display_text} ({confidence:.2f})"
+                cv2.putText(
+                    img,
+                    text,
+                    (10, 30),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    1,
+                    (0, 255, 0),  # Green color for all predictions
+                    2,
+                )
         else:
             # No hand detected
             if Predictions:
@@ -355,18 +309,7 @@ if FLASK_AVAILABLE and WEB_APP_MODE:
             # Reshape for model input: (1, 63)
             landmarks_array = landmarks_array.reshape(1, 63)
             
-            # Check if this is a space gesture BEFORE model prediction (only if enabled)
-            if EnableSpaceGesture and is_space_gesture(landmarks_array[0]):
-                return {
-                    'prediction': ' ',
-                    'confidence': 0.95,
-                    'top_predictions': [{'letter': ' ', 'confidence': 0.95}],
-                    'model_used': model_to_use,
-                    'error': None,
-                    'is_space': True
-                }
-            
-            # Make prediction for regular letters
+            # Make prediction using model (model handles all classes including space, del, nothing)
             preds = models_dict[model_to_use].predict(landmarks_array, verbose=0)
             predicted_class_idx = np.argmax(preds, axis=1)[0]
             confidence = preds[0][predicted_class_idx]
@@ -783,10 +726,17 @@ if FLASK_AVAILABLE and WEB_APP_MODE:
                             };
                             img.src = 'data:image/jpeg;base64,' + data.image_with_landmarks;
                         }
-                        if (data.prediction) {
-                            // Display "SPACE" for space gestures, otherwise show the letter
-                            const displayText = (data.is_space || data.prediction === ' ') ? 'SPACE' : data.prediction;
-                            document.getElementById('currentLetter').textContent = displayText;
+                            if (data.prediction) {
+                                // Format display text (model handles space, del, nothing directly)
+                                let displayText = data.prediction;
+                                if (data.prediction === ' ') {
+                                    displayText = 'SPACE';
+                                } else if (data.prediction === 'DEL') {
+                                    displayText = 'DEL';
+                                } else if (data.prediction === 'NONE') {
+                                    displayText = 'NONE';
+                                }
+                                document.getElementById('currentLetter').textContent = displayText;
                             const confidencePercent = (data.confidence * 100).toFixed(1);
                             document.getElementById('confidence').textContent = `Confidence: ${confidencePercent}%`;
                             
