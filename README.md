@@ -21,7 +21,6 @@ Turn **ASL hand gestures** into **live text and speech** using **MediaPipe**, **
 | Sentence Builder | Stable predictions are appended to form full sentences. |
 | Text‑to‑Speech | One‑click button to speak out the generated sentence using gTTS. |
 | Hand Landmarks | MediaPipe landmarks drawn directly on the video feed for feedback. |
-| Model Switching | Dropdown to switch between different trained CNN model variants. |
 
 ---
 
@@ -213,17 +212,6 @@ All plots and reports are saved under `plots/` and `reports/`.
 
 ---
 
-## What We Learned
-
-- How to go from **raw dataset → trained deep learning model → full web app**  
-- How **MediaPipe landmarks** simplify the problem compared to raw images  
-- Basics of **API design** in Flask (routes like `/predict`, `/models`, `/text-to-speech`)  
-- Front‑end tricks: sending frames from webcam, handling base64 images, and managing state (letters, words, audio)
-
-This was our first time combining **AI + UX/UI + real‑time browser interaction** in one project.
-
----
-
 ## Team
 
 - **Haroon** – Model integration, backend logic, real‑time prediction loop  
@@ -237,4 +225,3 @@ This was our first time combining **AI + UX/UI + real‑time browser interaction
 ## Note
 
 This project was built **for educational purposes** as part of **COMP‑360 (Introduction to Artificial Intelligence)** at **Forman Christian College**.  
-You are welcome to explore the code, learn from it, and extend it further for your own projects.
