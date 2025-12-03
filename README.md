@@ -1,7 +1,6 @@
 ## Sign Language Recognition System (COMP‑360 Project)
 
 > “Can we make a computer actually *read our hands*?”  
-This project is our attempt at answering that question using deep learning + computer vision.
 
 **Course:** Introduction to Artificial Intelligence (COMP‑360)  
 **Institution:** Forman Christian College  
