@@ -420,7 +420,7 @@
             box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
         }
 
-        #video {
+        #video, #displayCanvas {
             width: 100%;
             height: auto;
             display: block;
@@ -591,7 +591,7 @@
             height: 100%;
             background: linear-gradient(90deg, #10b981 0%, #34d399 100%);
             border-radius: 10px;
-            transition: width 0.5s ease;
+            transition: width 0.3s ease;
             box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
         }
 
@@ -788,7 +788,8 @@
         <div class="main-content">
             <div class="camera-panel">
                 <div class="camera-container">
-                    <video id="video" autoplay></video>
+                    <video id="video" autoplay playsinline></video>
+                    <canvas id="displayCanvas" style="display: none;"></canvas>
                     <div class="camera-overlay" id="cameraStatus">📷 Camera Off</div>
                 </div>
                 <div class="model-selector">
@@ -836,14 +837,22 @@
         </div>
     </div>
     <script>
-        let video = document.getElementById('video');
+        // DOM Elements
+        const video = document.getElementById('video');
+        const displayCanvas = document.getElementById('displayCanvas');
+        const displayCtx = displayCanvas.getContext('2d');
+        
+        // State variables
         let currentSentence = '';
         let stream = null;
         let predictionInterval = null;
+        let animationFrameId = null;
         let lastPrediction = '';
         let predictionCount = 0;
         let totalLettersDetected = 0;
         let currentAudio = null;
+        let isPredicting = false;
+        let lastFrameWithLandmarks = null;
 
         function showApp() {
             document.getElementById('landingPage').style.display = 'none';
@@ -862,36 +871,63 @@
 
         async function startCamera() {
             try {
-                stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+                stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        width: { ideal: 640 }, 
+                        height: { ideal: 480 },
+                        frameRate: { ideal: 30 }
+                    } 
+                });
                 video.srcObject = stream;
-                document.getElementById('cameraStatus').textContent = '🔴 Live';
-                document.getElementById('cameraStatus').style.background = 'rgba(239, 68, 68, 0.8)';
-                startPredictionLoop();
+                
+                // Wait for video to be ready
+                video.onloadedmetadata = () => {
+                    // Set canvas size to match video
+                    displayCanvas.width = video.videoWidth;
+                    displayCanvas.height = video.videoHeight;
+                    
+                    document.getElementById('cameraStatus').textContent = '🔴 Live';
+                    document.getElementById('cameraStatus').style.background = 'rgba(239, 68, 68, 0.8)';
+                    
+                    // Start the smooth video display loop
+                    startVideoLoop();
+                    
+                    // Start prediction loop (separate from display)
+                    startPredictionLoop();
+                };
             } catch (err) {
                 alert('Error accessing camera: ' + err.message);
             }
         }
 
         function stopCamera() {
-    if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-        video.srcObject = null;
-        stream = null;
-        document.getElementById('cameraStatus').textContent = '📷 Camera Off';
-        document.getElementById('cameraStatus').style.background = 'rgba(0, 0, 0, 0.8)';
-    }
-    if (predictionInterval) {
-        clearInterval(predictionInterval);
-        predictionInterval = null;
-    }
-    
-    // Show video element again and remove canvas
-    const displayCanvas = document.getElementById('displayCanvas');
-    if (displayCanvas) {
-        displayCanvas.remove();
-    }
-    video.style.display = 'block';
-}
+            // Stop prediction loop
+            if (predictionInterval) {
+                clearInterval(predictionInterval);
+                predictionInterval = null;
+            }
+            
+            // Stop animation frame
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+            
+            // Stop camera stream
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                video.srcObject = null;
+                stream = null;
+            }
+            
+            // Reset display
+            video.style.display = 'block';
+            displayCanvas.style.display = 'none';
+            lastFrameWithLandmarks = null;
+            
+            document.getElementById('cameraStatus').textContent = '📷 Camera Off';
+            document.getElementById('cameraStatus').style.background = 'rgba(0, 0, 0, 0.8)';
+        }
 
         function clearSentence() {
             currentSentence = '';
@@ -912,9 +948,91 @@
             document.getElementById('totalLetters').textContent = totalLettersDetected;
             const words = currentSentence.trim().split(/\s+/).filter(w => w.length > 0).length;
             document.getElementById('wordsCount').textContent = words;
-            
-            // Enable TTS button if there's text
             document.getElementById('ttsButton').disabled = currentSentence.trim().length === 0;
+        }
+
+        // Smooth video display loop - runs at full frame rate
+        function startVideoLoop() {
+            // Video loop removed - we only draw frames from prediction results
+            // This prevents the blinking caused by two loops fighting over the canvas
+            video.style.display = 'none';
+            displayCanvas.style.display = 'block';
+        }
+
+        // Prediction loop - handles both video display and predictions
+        function startPredictionLoop() {
+            if (predictionInterval) clearInterval(predictionInterval);
+            
+            // Run predictions every 150ms (~7 FPS) for smooth display with landmarks
+            predictionInterval = setInterval(async () => {
+                if (!stream || isPredicting) return;
+                
+                isPredicting = true;
+                
+                try {
+                    // Create a temporary canvas to capture current frame
+                    const tempCanvas = document.createElement('canvas');
+                    tempCanvas.width = video.videoWidth;
+                    tempCanvas.height = video.videoHeight;
+                    const tempCtx = tempCanvas.getContext('2d');
+                    tempCtx.drawImage(video, 0, 0);
+                    
+                    // Convert to blob
+                    const blob = await new Promise(resolve => tempCanvas.toBlob(resolve, 'image/jpeg', 0.8));
+                    
+                    const formData = new FormData();
+                    formData.append('image', blob, 'frame.jpg');
+                    formData.append('model', document.getElementById('modelSelect').value);
+                    formData.append('draw_landmarks', 'true');
+                    
+                    const response = await fetch('/predict', { method: 'POST', body: formData });
+                    const data = await response.json();
+                    
+                    // Update the display with landmarks
+                    if (data.image_with_landmarks) {
+                        const img = new Image();
+                        img.onload = () => {
+                            // Draw the frame with landmarks
+                            displayCtx.drawImage(img, 0, 0, displayCanvas.width, displayCanvas.height);
+                        };
+                        img.src = 'data:image/jpeg;base64,' + data.image_with_landmarks;
+                    }
+                    
+                    // Update prediction display
+                    if (data.prediction) {
+                        document.getElementById('currentLetter').textContent = data.prediction;
+                        const confidencePercent = (data.confidence * 100).toFixed(1);
+                        document.getElementById('confidence').textContent = `Confidence: ${confidencePercent}%`;
+                        document.getElementById('confidenceFill').style.width = confidencePercent + '%';
+                        
+                        // Letter confirmation logic
+                        if (data.confidence > 0.7) {
+                            if (data.prediction === lastPrediction) {
+                                predictionCount++;
+                                if (predictionCount >= 3) {
+                                    currentSentence += data.prediction;
+                                    totalLettersDetected++;
+                                    document.getElementById('sentenceDisplay').textContent = currentSentence || 'Start making gestures...';
+                                    updateStats();
+                                    predictionCount = 0;
+                                    lastPrediction = '';
+                                }
+                            } else {
+                                lastPrediction = data.prediction;
+                                predictionCount = 1;
+                            }
+                        }
+                    } else if (data.error) {
+                        document.getElementById('currentLetter').textContent = '?';
+                        document.getElementById('confidence').textContent = data.error;
+                        document.getElementById('confidenceFill').style.width = '0%';
+                    }
+                } catch (err) {
+                    console.error('Prediction error:', err);
+                } finally {
+                    isPredicting = false;
+                }
+            }, 200);  // 200ms = 5 predictions per second (smooth but not overwhelming)
         }
 
         async function speakText() {
@@ -931,21 +1049,17 @@
             try {
                 const response = await fetch('/text-to-speech', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ text: text })
                 });
 
                 const data = await response.json();
 
                 if (data.success) {
-                    // Stop any currently playing audio
                     if (currentAudio) {
                         currentAudio.pause();
                     }
 
-                    // Create and play new audio
                     const audioBlob = base64ToBlob(data.audio, 'audio/mpeg');
                     const audioUrl = URL.createObjectURL(audioBlob);
                     currentAudio = new Audio(audioUrl);
@@ -987,86 +1101,7 @@
             return new Blob([byteArray], { type: mimeType });
         }
 
-        function startPredictionLoop() {
-    if (predictionInterval) clearInterval(predictionInterval);
-    predictionInterval = setInterval(async () => {
-        if (!stream) return;
-        const canvas = document.createElement('canvas');
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(video, 0, 0);
-        canvas.toBlob(async (blob) => {
-            const formData = new FormData();
-            formData.append('image', blob, 'frame.jpg');
-            formData.append('model', document.getElementById('modelSelect').value);
-            formData.append('draw_landmarks', 'true');  // ← CHANGED FROM 'false' TO 'true'
-            try {
-                const response = await fetch('/predict', { method: 'POST', body: formData });
-                const data = await response.json();
-                
-                // Display the image with landmarks on the video element
-                if (data.image_with_landmarks) {
-                    const img = new Image();
-                    img.onload = () => {
-                        const tempCanvas = document.createElement('canvas');
-                        tempCanvas.width = video.videoWidth;
-                        tempCanvas.height = video.videoHeight;
-                        const tempCtx = tempCanvas.getContext('2d');
-                        tempCtx.drawImage(img, 0, 0, tempCanvas.width, tempCanvas.height);
-                        
-                        // Create a video-like element to show the processed frame
-                        video.style.display = 'none';
-                        let displayCanvas = document.getElementById('displayCanvas');
-                        if (!displayCanvas) {
-                            displayCanvas = document.createElement('canvas');
-                            displayCanvas.id = 'displayCanvas';
-                            displayCanvas.style.width = '100%';
-                            displayCanvas.style.height = 'auto';
-                            displayCanvas.style.display = 'block';
-                            video.parentNode.insertBefore(displayCanvas, video);
-                        }
-                        displayCanvas.width = tempCanvas.width;
-                        displayCanvas.height = tempCanvas.height;
-                        const displayCtx = displayCanvas.getContext('2d');
-                        displayCtx.drawImage(tempCanvas, 0, 0);
-                    };
-                    img.src = 'data:image/jpeg;base64,' + data.image_with_landmarks;
-                }
-                
-                if (data.prediction) {
-                    document.getElementById('currentLetter').textContent = data.prediction;
-                    const confidencePercent = (data.confidence * 100).toFixed(1);
-                    document.getElementById('confidence').textContent = `Confidence: ${confidencePercent}%`;
-                    document.getElementById('confidenceFill').style.width = confidencePercent + '%';
-                    if (data.confidence > 0.7) {
-                        if (data.prediction === lastPrediction) {
-                            predictionCount++;
-                            if (predictionCount >= 3) {
-                                currentSentence += data.prediction;
-                                totalLettersDetected++;
-                                document.getElementById('sentenceDisplay').textContent = currentSentence || 'Start making gestures...';
-                                updateStats();
-                                predictionCount = 0;
-                                lastPrediction = '';
-                            }
-                        } else {
-                            lastPrediction = data.prediction;
-                            predictionCount = 1;
-                        }
-                    }
-                } else if (data.error) {
-                    document.getElementById('currentLetter').textContent = '?';
-                    document.getElementById('confidence').textContent = data.error;
-                    document.getElementById('confidenceFill').style.width = '0%';
-                }
-            } catch (err) {
-                console.error('Prediction error:', err);
-            }
-        }, 'image/jpeg');
-    }, 1000);
-}
-
+        // Model selector change handler
         document.getElementById('modelSelect').addEventListener('change', (e) => {
             fetch('/set_model', {
                 method: 'POST',
