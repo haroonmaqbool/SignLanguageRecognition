@@ -1,194 +1,304 @@
 """
-Sign Language Recognition - Web Application Module
-================================================
-
-Project: Sign Language Recognition System
-Course: Introduction to Artificial Intelligence (COMP-360)
-Institution: Forman Christian College
+======================================================
+Sign Language Recognition - Camera Detection & Web Application
+======================================================
+This script implements both camera detection and Flask web application for sign language recognition.
 Team: Haroon, Saria, Azmeer
-Instructor: [Instructor Name]
-
-Description:
-This module provides a Flask web application for sign language recognition.
-Users can upload images or use webcam for real-time detection. The app
-supports both CNN and LSTM models and provides an intuitive web interface
-for testing the trained models.
-
-Features:
-- Image upload and prediction
-- Real-time webcam detection
-- Model selection (CNN/LSTM)
-- Confidence score display
-- Hand landmark visualization
-- Text-to-speech conversion
-- Responsive web interface
-- Batch processing support
-
-Requirements:
-- Flask, OpenCV, MediaPipe, NumPy
-- TensorFlow/Keras for model loading
-- gTTS for text-to-speech
-- Trained models from train_model.py
-
-Author: AI Coding Assistant
-Date: 2024
+Course: COMP-360 - Introduction to Artificial Intelligence
 """
-
-# Step 1 - Import Required Libraries
-from flask import Flask, render_template, request, jsonify, send_file
 import cv2
 import numpy as np
 import mediapipe as mp
 from tensorflow.keras.models import load_model
+from pathlib import Path
 import os
 import base64
-import io
-from PIL import Image
-import time
-import json
-from gtts import gTTS
 import tempfile
+from gtts import gTTS
 
-# Step 2 - Initialize Flask Application
-app = Flask(__name__)
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+# Flask imports (optional - only needed for web app mode)
+try:
+    from flask import Flask, render_template, request, jsonify
+    FLASK_AVAILABLE = True
+except ImportError:
+    FLASK_AVAILABLE = False
+    print("⚠️  Flask not available. Web app mode disabled. Install Flask to enable web app.")
 
-# Step 3 - Global Variables
-class SignLanguageApp:
-    """
-    Main application class for sign language recognition.
-    """
-    
-    def __init__(self):
-        self.models = {}
-        self.alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-        self.current_model = None
-        
-        # Initialize MediaPipe - OPTIMIZED FOR VIDEO STREAMING
-        self.mp_hands = mp.solutions.hands
-        self.hands = self.mp_hands.Hands(
-            static_image_mode=False,  # CHANGED: False for video streaming (much faster!)
-            max_num_hands=1,
-            min_detection_confidence=0.5,  # Slightly higher for better accuracy
-            min_tracking_confidence=0.5,   # Better tracking
-            model_complexity=0  # CHANGED: Lower complexity for speed (0 is fastest)
-        )
-        self.mp_drawing = mp.solutions.drawing_utils
-        self.mp_drawing_styles = mp.solutions.drawing_styles
-        
-        # Load models
-        self.load_models()
-    
-    def load_models(self):
-        """
-        Load trained CNN and LSTM models.
-        """
-        print("📥 Loading trained models...")
-        
-        model_files = {
-            'CNN': 'models/cnn_baseline.h5',
-            'CNN_LAST': 'models/cnn_last.h5'
-        }
-        
-        for model_name, model_path in model_files.items():
-            try:
-                if os.path.exists(model_path):
-                    self.models[model_name] = load_model(model_path)
-                    print(f"✅ {model_name} model loaded successfully!")
-                else:
-                    print(f"⚠️  {model_name} model not found at {model_path}")
-            except Exception as e:
-                print(f"❌ Error loading {model_name} model: {e}")
-        
-        # Set default model
-        if self.models:
-            self.current_model = list(self.models.keys())[0]
-            print(f"🎯 Default model set to: {self.current_model}")
-    
-    def normalize_landmarks(self, landmarks, is_right_hand):
-        """
-        Normalize landmarks to left-hand orientation.
-        For right hand, flip x-coordinates (mirror horizontally).
-        
-        Args:
-            landmarks: Array of 63 values (21 landmarks × 3 coordinates)
-            is_right_hand: Boolean indicating if hand is right hand
-        
-        Returns:
-            Normalized landmarks (always left-hand orientation)
-        """
-        if is_right_hand:
-            # Flip x-coordinates for right hand (mirror horizontally)
-            landmarks_normalized = landmarks.copy()
-            for i in range(0, len(landmarks), 3):  # Every 3rd element is x-coordinate
-                landmarks_normalized[i] = 1.0 - landmarks_normalized[i]  # Flip x
-            return landmarks_normalized
-        return landmarks  # Left hand, no change needed
-    
-    def extract_landmarks(self, image):
-        """
-        Extract hand landmarks from an image and normalize to left-hand orientation.
-        
-        Args:
-            image: Input image (numpy array)
+# Constants
+# The model will auto-detect the number of classes from the loaded model
+# Model trained with 29 classes: A-Z + space + del + nothing
+# Model trained with 27 classes: A-Z + space
+# Model trained with 26 classes: A-Z only
+Alphabets = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")  # Will be updated based on loaded model
+Predictions = True # Set to True to enable live predictions
+
+# Web app mode flag - set to True to run Flask web app, False for direct camera mode
+WEB_APP_MODE = True  # Change to False to run direct camera mode
+
+# Get script directory
+Script_dir = Path(__file__).parent.absolute()
+
+# Initialize MediaPipe
+mp_hands = mp.solutions.hands
+mp_drawing = mp.solutions.drawing_utils
+
+# Initialize model (only if Predictions is True)
+model = None
+models_dict = {}  # For web app mode - can store multiple models
+if Predictions:
+    try:
+        model_path = Script_dir / "models" / "cnn_baseline.h5"
+        if model_path.exists():
+            print(f"Loading model from {model_path}")
+            model = load_model(str(model_path))
+            models_dict['CNN (Best)'] = model  # Store for web app with clearer name
             
-        Returns:
-            tuple: (landmarks array, hand_landmarks object for drawing) or (None, None) if no hand detected
+            # Auto-detect number of classes from model output shape
+            num_classes = model.output.shape[1]
+            print(f"   Model loaded successfully!")
+            print(f"   Detected {num_classes} classes in model")
+            
+            # Update Alphabets list based on number of classes
+            if num_classes == 29:
+                # Model trained with A-Z + space + del + nothing
+                Alphabets = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ") + [" ", "DEL", "NONE"]
+                print(f"   Using 29 classes: A-Z + space + del + nothing")
+            elif num_classes == 27:
+                # Model trained with A-Z + space
+                Alphabets = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ") + [" "]
+                print(f"   Using 27 classes: A-Z + space")
+            elif num_classes == 26:
+                # Model trained with A-Z only
+                Alphabets = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+                print(f"   Using 26 classes: A-Z only")
+            else:
+                # Unknown number of classes, use default
+                print(f"   Warning: Unknown number of classes ({num_classes}), using default A-Z")
+                Alphabets = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")[:num_classes] if num_classes <= 26 else list("ABCDEFGHIJKLMNOPQRSTUVWXYZ") + [" "] * (num_classes - 26)
+        else:
+            print(f"  Model not found: {model_path}")
+            print("   Please run train_model.py first to train the model.")
+            print("   Running without predictions (hand tracking only).")
+            Predictions = False
+    except Exception as e:
+        print(f"  Error loading model: {e}")
+        print("   Running without predictions (hand tracking only).")
+        Predictions = False
+
+# Try loading additional models for web app
+try:
+    model_last_path = Script_dir / "models" / "cnn_last.h5"
+    if model_last_path.exists():
+        models_dict['CNN (Final)'] = load_model(str(model_last_path))
+        print(f"   Additional model CNN (Final) loaded!")
+        # Ensure Alphabets is updated if this model has different number of classes
+        if models_dict['CNN (Final)'].output.shape[1] != len(Alphabets):
+            num_classes = models_dict['CNN (Final)'].output.shape[1]
+            if num_classes == 29:
+                Alphabets = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ") + [" ", "DEL", "NONE"]
+            elif num_classes == 27:
+                Alphabets = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ") + [" "]
+            elif num_classes == 26:
+                Alphabets = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+except:
+    pass
+
+# Initialize MediaPipe Hands
+hands = mp_hands.Hands(
+    max_num_hands=2,
+    min_detection_confidence=0.3,  # Lowered to 0.3 for better A sign detection
+    min_tracking_confidence=0.3,   # Lowered to 0.3 for better tracking
+    model_complexity=1  # Higher complexity for better accuracy
+)
+
+# ============================================================================
+# DIRECT CAMERA MODE (Original skeleton logic - UNCHANGED)
+# ============================================================================
+def run_camera_mode():
+    """Run the original camera detection mode - EXACTLY as skeleton."""
+    # Initialize webcam
+    webcam = cv2.VideoCapture(0)
+    if not webcam.isOpened():
+        print("✗ Error: Could not open webcam.")
+        return
+    
+    print("\n" + "=" * 60)
+    print("Sign Language Recognition - Live Camera")
+    print("=" * 60)
+    print("Press 'q' to quit")
+    if Predictions:
+        print("Live prediction: ENABLED")
+    else:
+        print("Live prediction: DISABLED (set Predictions = True to enable)")
+    print("=" * 60 + "\n")
+    
+    while webcam.isOpened():
+        success, img = webcam.read()
+        if not success:
+            print("Error: Failed to read frame from webcam.")
+            break
+        
+        # Convert BGR to RGB for MediaPipe
+        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        
+        # Process with MediaPipe
+        results = hands.process(img_rgb)
+        
+        # Convert back to BGR for OpenCV display
+        img = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
+        
+        # Draw hand landmarks
+        if results.multi_hand_landmarks:
+            for hand_landmarks in results.multi_hand_landmarks:
+                mp_drawing.draw_landmarks(
+                    img,
+                    hand_landmarks,
+                    mp_hands.HAND_CONNECTIONS
+                )
+            
+            # Live prediction (only if enabled and model is loaded)
+            if Predictions and model is not None:
+                # Extract landmarks from first hand
+                first_hand = results.multi_hand_landmarks[0]
+                
+                # Check if it's a right hand using multi_handedness
+                is_right_hand = False
+                if results.multi_handedness:
+                    handedness = results.multi_handedness[0]
+                    if hasattr(handedness, 'classification') and len(handedness.classification) > 0:
+                        is_right_hand = handedness.classification[0].label == 'Right'
+                
+                # Build feature vector (63 dimensions: 21 landmarks × 3 coordinates)
+                landmarks_array = np.zeros(63)
+                idx = 0
+                for landmark in first_hand.landmark:
+                    landmarks_array[idx] = landmark.x
+                    landmarks_array[idx + 1] = landmark.y
+                    landmarks_array[idx + 2] = landmark.z
+                    idx += 3
+                
+                # Normalize to left-hand orientation (flip right hand x-coordinates)
+                if is_right_hand:
+                    for i in range(0, 63, 3):  # Every 3rd element is x-coordinate
+                        landmarks_array[i] = 1.0 - landmarks_array[i]  # Flip x
+                
+                # Reshape for model input: (1, 63)
+                landmarks_array = landmarks_array.reshape(1, 63)
+                
+                # Make prediction using model (model handles all classes including space, del, nothing)
+                preds = model.predict(landmarks_array, verbose=0)
+                predicted_class_idx = np.argmax(preds, axis=1)[0]
+                confidence = preds[0][predicted_class_idx]
+                predicted_letter = Alphabets[predicted_class_idx]
+                
+                # Format display text (show "SPACE" for space character, "DEL" for delete, etc.)
+                if predicted_letter == ' ':
+                    display_text = "SPACE"
+                elif predicted_letter == "DEL":
+                    display_text = "DEL"
+                elif predicted_letter == "NONE":
+                    display_text = "NONE"
+                else:
+                    display_text = predicted_letter
+                
+                # Overlay prediction on frame
+                text = f"Predicted: {display_text} ({confidence:.2f})"
+                cv2.putText(
+                    img,
+                    text,
+                    (10, 30),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    1,
+                    (0, 255, 0),  # Green color for all predictions
+                    2,
+                )
+        else:
+            # No hand detected
+            if Predictions:
+                cv2.putText(
+                    img,
+                    "No hand detected",
+                    (10, 30),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    1,
+                    (0, 0, 255),
+                    2,
+                )
+        
+        # Display frame
+        cv2.imshow("Webcam - Sign Language Recognition", img)
+        
+        # Exit on 'q' key press
+        if cv2.waitKey(5) & 0xFF == ord("q"):
+            break
+    
+    # Cleanup
+    webcam.release()
+    cv2.destroyAllWindows()
+    print("\n Webcam released. Exiting...")
+
+# ============================================================================
+# WEB APP MODE (Flask routes and HTML template)
+# ============================================================================
+if FLASK_AVAILABLE and WEB_APP_MODE:
+    # Initialize Flask Application
+    app = Flask(__name__)
+    app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+    
+    current_model_name = list(models_dict.keys())[0] if models_dict else None
+    
+    def extract_landmarks_from_image(image):
         """
-        # Convert BGR to RGB
+        Extract landmarks from image - EXACTLY matching skeleton logic.
+        """
+        # Convert BGR to RGB for MediaPipe
         rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         
-        # Process image
-        results = self.hands.process(rgb_image)
+        # Process with MediaPipe
+        results = hands.process(rgb_image)
         
         if results.multi_hand_landmarks:
-            # Get the first hand
-            hand_landmarks = results.multi_hand_landmarks[0]
+            # Extract landmarks from first hand
+            first_hand = results.multi_hand_landmarks[0]
             
             # Check if it's a right hand using multi_handedness
             is_right_hand = False
             if results.multi_handedness:
-                # MediaPipe returns handedness classification
                 handedness = results.multi_handedness[0]
                 if hasattr(handedness, 'classification') and len(handedness.classification) > 0:
-                    # Check if hand is classified as right hand
                     is_right_hand = handedness.classification[0].label == 'Right'
             
-            # Extract landmarks
-            landmarks = []
-            for landmark in hand_landmarks.landmark:
-                landmarks.extend([landmark.x, landmark.y, landmark.z])
+            # Build feature vector (63 dimensions: 21 landmarks × 3 coordinates)
+            landmarks_array = np.zeros(63)
+            idx = 0
+            for landmark in first_hand.landmark:
+                landmarks_array[idx] = landmark.x
+                landmarks_array[idx + 1] = landmark.y
+                landmarks_array[idx + 2] = landmark.z
+                idx += 3
             
-            landmarks = np.array(landmarks, dtype=np.float32)
+            # Normalize to left-hand orientation (flip right hand x-coordinates)
+            if is_right_hand:
+                for i in range(0, 63, 3):  # Every 3rd element is x-coordinate
+                    landmarks_array[i] = 1.0 - landmarks_array[i]  # Flip x
             
-            # Normalize to left-hand orientation (flip right hand)
-            landmarks = self.normalize_landmarks(landmarks, is_right_hand)
-            
-            return landmarks, hand_landmarks
+            return landmarks_array, first_hand
         
         return None, None
     
-    def predict_gesture(self, landmarks, model_name=None):
+    def predict_gesture(landmarks_array, model_to_use=None):
         """
-        Predict sign language gesture from landmarks.
-        
-        Args:
-            landmarks: Hand landmarks array
-            model_name: Name of model to use (optional)
-            
-        Returns:
-            dict: Prediction results
+        Predict gesture from landmarks - EXACTLY matching skeleton logic.
         """
-        if landmarks is None:
+        if landmarks_array is None:
             return {
                 'prediction': None,
                 'confidence': 0.0,
                 'error': 'No hand detected in image'
             }
         
-        model_to_use = model_name or self.current_model
-        
-        if model_to_use not in self.models:
+        model_to_use = model_to_use or current_model_name
+        if model_to_use not in models_dict:
             return {
                 'prediction': None,
                 'confidence': 0.0,
@@ -196,30 +306,27 @@ class SignLanguageApp:
             }
         
         try:
-            # Reshape landmarks for model input
-            landmarks_reshaped = landmarks.reshape(1, -1)
+            # Reshape for model input: (1, 63)
+            landmarks_array = landmarks_array.reshape(1, 63)
             
-            # Make prediction
-            prediction = self.models[model_to_use].predict(landmarks_reshaped, verbose=0)
-            
-            # Get predicted class and confidence
-            predicted_class_idx = np.argmax(prediction[0])
-            confidence = float(np.max(prediction[0]))
-            
-            predicted_letter = self.alphabet[predicted_class_idx]
+            # Make prediction using model (model handles all classes including space, del, nothing)
+            preds = models_dict[model_to_use].predict(landmarks_array, verbose=0)
+            predicted_class_idx = np.argmax(preds, axis=1)[0]
+            confidence = preds[0][predicted_class_idx]
+            predicted_letter = Alphabets[predicted_class_idx]
             
             # Get top 3 predictions
-            top_indices = np.argsort(prediction[0])[-3:][::-1]
+            top_indices = np.argsort(preds[0])[-3:][::-1]
             top_predictions = []
             for idx in top_indices:
                 top_predictions.append({
-                    'letter': self.alphabet[idx],
-                    'confidence': float(prediction[0][idx])
+                    'letter': Alphabets[idx],
+                    'confidence': float(preds[0][idx])
                 })
             
             return {
                 'prediction': predicted_letter,
-                'confidence': confidence,
+                'confidence': float(confidence),
                 'top_predictions': top_predictions,
                 'model_used': model_to_use,
                 'error': None
@@ -232,221 +339,169 @@ class SignLanguageApp:
                 'error': f'Prediction error: {str(e)}'
             }
     
-    def draw_landmarks_on_image(self, image, hand_landmarks):
-        """
-        Draw hand landmarks on the image with RED color styling.
-        
-        Args:
-            image: Input image
-            hand_landmarks: MediaPipe hand landmarks object
-            
-        Returns:
-            numpy.ndarray: Image with landmarks drawn
-        """
+    def draw_landmarks_on_image(image, hand_landmarks):
+        """Draw landmarks on image - matching skeleton style."""
         if hand_landmarks is None:
             return image
         
-        # Create a copy to avoid modifying original
         annotated_image = image.copy()
-        
-        # Custom RED drawing specs
-        landmark_drawing_spec = self.mp_drawing.DrawingSpec(
-            color=(0, 0, 255),  # RED in BGR format
-            thickness=2,
-            circle_radius=3
-        )
-        connection_drawing_spec = self.mp_drawing.DrawingSpec(
-            color=(0, 0, 255),  # RED in BGR format
-            thickness=2
-        )
-        
-        # Draw landmarks with connections using RED color
-        self.mp_drawing.draw_landmarks(
+        mp_drawing.draw_landmarks(
             annotated_image,
             hand_landmarks,
-            self.mp_hands.HAND_CONNECTIONS,
-            landmark_drawing_spec,
-            connection_drawing_spec
+            mp_hands.HAND_CONNECTIONS
         )
-        
         return annotated_image
-
-# Initialize application
-sign_lang_app = SignLanguageApp()
-
-# Step 4 - Flask Routes
-@app.route('/')
-def index():
-    """
-    Main page route.
-    """
-    return render_template('index.html', 
-                         available_models=list(sign_lang_app.models.keys()),
-                         current_model=sign_lang_app.current_model)
-
-@app.route('/predict', methods=['POST'])
-def predict():
-    """
-    Predict sign language from uploaded image.
-    """
-    try:
-        # Get uploaded file
-        if 'image' not in request.files:
-            return jsonify({'error': 'No image file provided'}), 400
-        
-        file = request.files['image']
-        if file.filename == '':
-            return jsonify({'error': 'No image file selected'}), 400
-        
-        # Get model selection
-        model_name = request.form.get('model', sign_lang_app.current_model)
-        
-        # Read image
-        image_bytes = file.read()
-        nparr = np.frombuffer(image_bytes, np.uint8)
-        image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-        
-        if image is None:
-            return jsonify({'error': 'Invalid image format'}), 400
-        
-        # Resize image if too large (OPTIMIZED: smaller max size for speed)
-        height, width = image.shape[:2]
-        if height > 480 or width > 640:
-            scale = min(640/width, 480/height)
-            new_height = int(height * scale)
-            new_width = int(width * scale)
-            image = cv2.resize(image, (new_width, new_height))
-        
-        # Extract landmarks
-        landmarks, hand_landmarks_obj = sign_lang_app.extract_landmarks(image)
-        
-        # Make prediction
-        result = sign_lang_app.predict_gesture(landmarks, model_name)
-        
-        # Draw landmarks on image if requested
-        draw_landmarks = request.form.get('draw_landmarks', 'false').lower() == 'true'
-        if draw_landmarks and hand_landmarks_obj is not None:
-            image = sign_lang_app.draw_landmarks_on_image(image, hand_landmarks_obj)
-        
-        # Convert image to base64 for display (OPTIMIZED: lower quality for speed)
-        encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 70]  # Lower quality = faster
-        _, buffer = cv2.imencode('.jpg', image, encode_param)
-        image_base64 = base64.b64encode(buffer).decode('utf-8')
-        
-        result['image_with_landmarks'] = image_base64
-        
-        return jsonify(result)
-        
-    except Exception as e:
-        return jsonify({'error': f'Processing error: {str(e)}'}), 500
-
-@app.route('/text-to-speech', methods=['POST'])
-def text_to_speech():
-    """
-    Convert text to speech and return audio file.
-    """
-    try:
-        data = request.get_json()
-        text = data.get('text', '').strip()
-        
-        if not text:
-            return jsonify({'error': 'No text provided'}), 400
-        
-        # Create a temporary file for the audio
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3') as fp:
-            temp_filename = fp.name
-        
-        # Generate speech using gTTS
-        tts = gTTS(text=text, lang='en', slow=False)
-        tts.save(temp_filename)
-        
-        # Read the audio file and convert to base64
-        with open(temp_filename, 'rb') as audio_file:
-            audio_data = audio_file.read()
-            audio_base64 = base64.b64encode(audio_data).decode('utf-8')
-        
-        # Clean up temporary file
-        os.unlink(temp_filename)
-        
-        return jsonify({
-            'success': True,
-            'audio': audio_base64,
-            'text': text
-        })
-        
-    except Exception as e:
-        return jsonify({'error': f'Text-to-speech error: {str(e)}'}), 500
-
-@app.route('/set_model', methods=['POST'])
-def set_model():
-    """
-    Set the current model for predictions.
-    """
-    try:
-        data = request.get_json()
-        model_name = data.get('model')
-        
-        if model_name not in sign_lang_app.models:
-            return jsonify({'error': f'Model {model_name} not available'}), 400
-        
-        sign_lang_app.current_model = model_name
-        return jsonify({'message': f'Model set to {model_name}', 'current_model': model_name})
-        
-    except Exception as e:
-        return jsonify({'error': f'Error setting model: {str(e)}'}), 500
-
-@app.route('/models')
-def get_models():
-    """
-    Get available models.
-    """
-    return jsonify({
-        'available_models': list(sign_lang_app.models.keys()),
-        'current_model': sign_lang_app.current_model
-    })
-
-@app.route('/health')
-def health_check():
-    """
-    Health check endpoint.
-    """
-    return jsonify({
-        'status': 'healthy',
-        'models_loaded': len(sign_lang_app.models),
-        'available_models': list(sign_lang_app.models.keys())
-    })
-
-# Step 5 - Error Handlers
-@app.errorhandler(413)
-def too_large(e):
-    """
-    Handle file too large error.
-    """
-    return jsonify({'error': 'File too large. Maximum size is 16MB.'}), 413
-
-@app.errorhandler(404)
-def not_found(e):
-    """
-    Handle 404 errors.
-    """
-    return jsonify({'error': 'Page not found'}), 404
-
-@app.errorhandler(500)
-def internal_error(e):
-    """
-    Handle 500 errors.
-    """
-    return jsonify({'error': 'Internal server error'}), 500
-
-# Step 6 - Main Application
-def create_templates():
-    """
-    Create HTML templates for the web application.
-    """
-    import os
-    os.makedirs('templates', exist_ok=True)
     
-    html_content = '''<!DOCTYPE html>
+    # Flask Routes
+    @app.route('/')
+    def index():
+        """Main page route."""
+        return render_template('index.html',
+                             available_models=list(models_dict.keys()),
+                             current_model=current_model_name)
+    
+    @app.route('/predict', methods=['POST'])
+    def predict():
+        """Predict sign language from uploaded image."""
+        try:
+            if 'image' not in request.files:
+                return jsonify({'error': 'No image file provided'}), 400
+            
+            file = request.files['image']
+            if file.filename == '':
+                return jsonify({'error': 'No image file selected'}), 400
+            
+            # Get model selection
+            model_name = request.form.get('model', current_model_name)
+            
+            # Read image
+            image_bytes = file.read()
+            nparr = np.frombuffer(image_bytes, np.uint8)
+            image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            
+            if image is None:
+                return jsonify({'error': 'Invalid image format'}), 400
+            
+            # Resize image if too large
+            height, width = image.shape[:2]
+            if height > 480 or width > 640:
+                scale = min(640/width, 480/height)
+                new_height = int(height * scale)
+                new_width = int(width * scale)
+                image = cv2.resize(image, (new_width, new_height))
+            
+            # Extract landmarks - EXACTLY matching skeleton logic
+            landmarks_array, hand_landmarks_obj = extract_landmarks_from_image(image)
+            
+            # Make prediction - EXACTLY matching skeleton logic
+            result = predict_gesture(landmarks_array, model_name)
+            
+            # Draw landmarks on image if requested
+            draw_landmarks = request.form.get('draw_landmarks', 'false').lower() == 'true'
+            if draw_landmarks and hand_landmarks_obj is not None:
+                image = draw_landmarks_on_image(image, hand_landmarks_obj)
+            
+            # Convert image to base64 for display
+            encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 70]
+            _, buffer = cv2.imencode('.jpg', image, encode_param)
+            image_base64 = base64.b64encode(buffer).decode('utf-8')
+            
+            result['image_with_landmarks'] = image_base64
+            
+            return jsonify(result)
+            
+        except Exception as e:
+            return jsonify({'error': f'Processing error: {str(e)}'}), 500
+    
+    @app.route('/text-to-speech', methods=['POST'])
+    def text_to_speech():
+        """Convert text to speech and return audio file."""
+        try:
+            data = request.get_json()
+            text = data.get('text', '').strip()
+            
+            if not text:
+                return jsonify({'error': 'No text provided'}), 400
+            
+            # Create a temporary file for the audio
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3') as fp:
+                temp_filename = fp.name
+            
+            # Generate speech using gTTS
+            tts = gTTS(text=text, lang='en', slow=False)
+            tts.save(temp_filename)
+            
+            # Read the audio file and convert to base64
+            with open(temp_filename, 'rb') as audio_file:
+                audio_data = audio_file.read()
+                audio_base64 = base64.b64encode(audio_data).decode('utf-8')
+            
+            # Clean up temporary file
+            os.unlink(temp_filename)
+            
+            return jsonify({
+                'success': True,
+                'audio': audio_base64,
+                'text': text
+            })
+            
+        except Exception as e:
+            return jsonify({'error': f'Text-to-speech error: {str(e)}'}), 500
+    
+    @app.route('/set_model', methods=['POST'])
+    def set_model():
+        """Set the current model for predictions."""
+        try:
+            data = request.get_json()
+            model_name = data.get('model')
+            
+            global current_model_name
+            if model_name not in models_dict:
+                return jsonify({'error': f'Model {model_name} not available'}), 400
+            
+            current_model_name = model_name
+            return jsonify({'message': f'Model set to {model_name}', 'current_model': model_name})
+            
+        except Exception as e:
+            return jsonify({'error': f'Error setting model: {str(e)}'}), 500
+    
+    @app.route('/models')
+    def get_models():
+        """Get available models."""
+        return jsonify({
+            'available_models': list(models_dict.keys()),
+            'current_model': current_model_name
+        })
+    
+    @app.route('/health')
+    def health_check():
+        """Health check endpoint."""
+        return jsonify({
+            'status': 'healthy',
+            'models_loaded': len(models_dict),
+            'available_models': list(models_dict.keys())
+        })
+    
+    # Error Handlers
+    @app.errorhandler(413)
+    def too_large(e):
+        return jsonify({'error': 'File too large. Maximum size is 16MB.'}), 413
+    
+    @app.errorhandler(404)
+    def not_found(e):
+        return jsonify({'error': 'Page not found'}), 404
+    
+    @app.errorhandler(500)
+    def internal_error(e):
+        return jsonify({'error': 'Internal server error'}), 500
+    
+    # HTML Template Creation (frontend design from app.py, backend logic preserved)
+    def create_templates():
+        """Create HTML templates for the web application."""
+        os.makedirs('templates', exist_ok=True)
+        
+        # Frontend design copied from app.py, but keeping stricter prediction logic
+        html_content = '''<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -1209,7 +1264,7 @@ def create_templates():
             <div class="feature-card">
                 <div class="icon">🧠</div>
                 <h3>AI Powered</h3>
-                <p>Advanced CNN & LSTM neural networks trained for precision</p>
+                <p>AI model that learns from thousands of hand gestures to recognize signs accurately</p>
             </div>
             <div class="feature-card">
                 <div class="icon">✍️</div>
@@ -1301,6 +1356,10 @@ def create_templates():
         let currentAudio = null;
         let isPredicting = false;
         let lastFrameWithLandmarks = null;
+        let firstPredictionTime = null;  // Track when we first saw this prediction
+        const MIN_CONFIDENCE = 0.85;  // Higher confidence threshold (85%)
+        const REQUIRED_CONSECUTIVE = 6;  // Need 6 consecutive predictions
+        const MIN_TIME_MS = 1000;  // Minimum 1 second of stable prediction before accepting
 
         function showApp() {
             document.getElementById('landingPage').style.display = 'none';
@@ -1382,6 +1441,7 @@ def create_templates():
             lastPrediction = '';
             predictionCount = 0;
             totalLettersDetected = 0;
+            firstPredictionTime = null;
             document.getElementById('sentenceDisplay').textContent = 'Start making gestures to build your message...';
             document.getElementById('totalLetters').textContent = '0';
             document.getElementById('wordsCount').textContent = '0';
@@ -1411,7 +1471,7 @@ def create_templates():
         function startPredictionLoop() {
             if (predictionInterval) clearInterval(predictionInterval);
             
-            // Run predictions every 150ms (~7 FPS) for smooth display with landmarks
+            // Run predictions every 200ms for smooth display with landmarks
             predictionInterval = setInterval(async () => {
                 if (!stream || isPredicting) return;
                 
@@ -1448,26 +1508,70 @@ def create_templates():
                     
                     // Update prediction display
                     if (data.prediction) {
-                        document.getElementById('currentLetter').textContent = data.prediction;
+                        // Format display text (model handles space, del, nothing directly)
+                        let displayText = data.prediction;
+                        if (data.prediction === ' ') {
+                            displayText = 'SPACE';
+                        } else if (data.prediction === 'DEL') {
+                            displayText = 'DEL';
+                        } else if (data.prediction === 'NONE') {
+                            displayText = 'NONE';
+                        }
+                        document.getElementById('currentLetter').textContent = displayText;
                         const confidencePercent = (data.confidence * 100).toFixed(1);
                         document.getElementById('confidence').textContent = `Confidence: ${confidencePercent}%`;
                         document.getElementById('confidenceFill').style.width = confidencePercent + '%';
                         
-                        // Letter confirmation logic
-                        if (data.confidence > 0.7) {
+                        // Only consider predictions with high confidence
+                        if (data.confidence >= MIN_CONFIDENCE) {
+                            // Check if this is the same prediction as before
                             if (data.prediction === lastPrediction) {
+                                // Same prediction - increment counter
                                 predictionCount++;
-                                if (predictionCount >= 3) {
-                                    currentSentence += data.prediction;
+                                
+                                // Track when we first saw this prediction
+                                if (firstPredictionTime === null) {
+                                    firstPredictionTime = Date.now();
+                                }
+                                
+                                // Check if we've met both requirements:
+                                // 1. Enough consecutive predictions
+                                // 2. Enough time has passed (verification period)
+                                const timeElapsed = Date.now() - firstPredictionTime;
+                                
+                                if (predictionCount >= REQUIRED_CONSECUTIVE && timeElapsed >= MIN_TIME_MS) {
+                                    // Verified! Handle the prediction
+                                    if (data.prediction === 'DEL' || data.prediction === 'del') {
+                                        // Delete gesture: remove last character
+                                        if (currentSentence.length > 0) {
+                                            currentSentence = currentSentence.slice(0, -1);
+                                        }
+                                    } else {
+                                        // Regular letter/space: add to sentence
+                                        currentSentence += data.prediction;
+                                    }
+                                    
                                     totalLettersDetected++;
-                                    document.getElementById('sentenceDisplay').textContent = currentSentence || 'Start making gestures...';
+                                    document.getElementById('sentenceDisplay').textContent = currentSentence || 'Start making gestures to build your message...';
                                     updateStats();
+                                    
+                                    // Reset for next prediction
                                     predictionCount = 0;
                                     lastPrediction = '';
+                                    firstPredictionTime = null;
                                 }
                             } else {
+                                // Different prediction - reset everything
                                 lastPrediction = data.prediction;
                                 predictionCount = 1;
+                                firstPredictionTime = Date.now();
+                            }
+                        } else {
+                            // Confidence too low - reset if we were tracking something
+                            if (lastPrediction !== '') {
+                                lastPrediction = '';
+                                predictionCount = 0;
+                                firstPredictionTime = null;
                             }
                         }
                     } else if (data.error) {
@@ -1562,53 +1666,57 @@ def create_templates():
     </script>
 </body>
 </html>'''
+        
+        with open('templates/index.html', 'w', encoding='utf-8') as f:
+            f.write(html_content)
+        
+        print("✅ HTML template created successfully!")
     
-    with open('templates/index.html', 'w', encoding='utf-8') as f:
-        f.write(html_content)
-    
-    print("✅ HTML template created successfully!")
+    def main_web_app():
+        """Main function to run Flask web application."""
+        print("=" * 60)
+        print("Sign Language Recognition - Web Application")
+        print("=" * 60)
+        print("Team: Haroon, Saria, Azmeer")
+        print("Course: COMP-360 - Introduction to Artificial Intelligence")
+        print("Institution: Forman Christian College")
+        print("=" * 60)
+        
+        # Create templates
+        create_templates()
+        
+        # Check if models are loaded
+        if not models_dict:
+            print("❌ No trained models found!")
+            print("Please run train_model.py first to train the model.")
+            return
+        
+        print(f"✅ Web application initialized successfully!")
+        print(f"📊 Available models: {list(models_dict.keys())}")
+        print(f"🎯 Current model: {current_model_name}")
+        print(f"\n🌐 Starting Flask web server...")
+        print(f"📱 Open your browser and go to: http://localhost:5000")
+        print(f"🛑 Press Ctrl+C to stop the server")
+        print("=" * 60)
+        
+        # Run Flask app
+        app.run(debug=True, host='0.0.0.0', port=5000)
 
-def main():
-    """
-    Main function to run the Flask application.
-    """
-    print("=" * 60)
-    print("Sign Language Recognition - Web Application")
-    print("=" * 60)
-    print("Team: Haroon, Saria, Azmeer")
-    print("Course: COMP-360 - Introduction to Artificial Intelligence")
-    print("Institution: Forman Christian College")
-    print("=" * 60)
-    
-    # Create templates
-    create_templates()
-    
-    # Check if models are loaded
-    if not sign_lang_app.models:
-        print("❌ No trained models found!")
-        print("Please run train_model.py first to train the models.")
-        return
-    
-    print(f"✅ Web application initialized successfully!")
-    print(f"📊 Available models: {list(sign_lang_app.models.keys())}")
-    print(f"🎯 Current model: {sign_lang_app.current_model}")
-    print(f"\n🌐 Starting Flask web server...")
-    print(f"📱 Open your browser and go to: http://localhost:5000")
-    print(f"🛑 Press Ctrl+C to stop the server")
-    print("=" * 60)
-    
-    # Run Flask app
-    app.run(debug=True, host='0.0.0.0', port=5000)
-
+# ============================================================================
+# MAIN EXECUTION
+# ============================================================================
 if __name__ == "__main__":
-    """
-    Execute the Flask application when script is run directly.
-    """
-    try:
-        main()
-    except KeyboardInterrupt:
-        print("\n\n⚠️  Web application stopped by user.")
-        print("Exiting gracefully...")
-    except Exception as e:
-        print(f"\n❌ An error occurred: {e}")
-        print("Please check your setup and try again.")
+    if WEB_APP_MODE and FLASK_AVAILABLE:
+        try:
+            main_web_app()
+        except KeyboardInterrupt:
+            print("\n\n⚠️  Web application stopped by user.")
+            print("Exiting gracefully...")
+        except Exception as e:
+            print(f"\n❌ An error occurred: {e}")
+            print("Please check your setup and try again.")
+    else:
+        if WEB_APP_MODE and not FLASK_AVAILABLE:
+            print("⚠️  Flask not available. Running in camera mode instead.")
+        # Run direct camera mode (original skeleton behavior)
+        run_camera_mode()

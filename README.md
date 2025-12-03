@@ -6,10 +6,10 @@
  **Institution:** Forman Christian College  
  **Team:** Haroon • Saria • Azmeer  
  
- **Idea in one line:**  
- Turn **ASL hand gestures** into **live text and speech** using **MediaPipe**, **CNN models**, and a custom **Flask web app**.
- 
- We trained our models on the public **ASL Alphabet Dataset** (A–Z hand signs) from **Kaggle**, and then converted each image into hand‑landmark features using MediaPipe.
+**Idea in one line:**  
+Turn **ASL hand gestures** into **live text and speech** using **MediaPipe**, **neural network models**, and a custom **Flask web app**.
+
+We trained our models on the public **ASL Alphabet Dataset** (A–Z + space + del + nothing hand signs) from **Kaggle**, and then converted each image into hand‑landmark features using MediaPipe.
 
 ---
 
@@ -17,10 +17,11 @@
 
 | Feature | Description |
 |---------|-------------|
-| Real‑time ASL Detection | Reads your hand signs from a webcam and predicts the current letter. |
-| Modern Web UI | Animated landing page and a “Real‑Time Detection Studio” for live use. |
-| AI Models | CNN‑based models trained on ASL alphabet landmarks. |
-| Sentence Builder | Stable predictions are appended to form full sentences. |
+| Real‑time ASL Detection | Reads your hand signs from a webcam and predicts the current letter, space, delete, or nothing. |
+| Modern Web UI | Animated landing page and a "Real‑Time Detection Studio" for live use. |
+| AI Models | Neural network models (MLP) trained on ASL alphabet landmarks. |
+| Sentence Builder | Stable predictions are appended to form full sentences with strict verification (85% confidence + time-based checks). |
+| Delete Gesture | Show the delete gesture to remove the last character from your sentence. |
 | Text‑to‑Speech | One‑click button to speak out the generated sentence using gTTS. |
 | Hand Landmarks | MediaPipe landmarks drawn directly on the video feed for feedback. |
 
@@ -42,7 +43,7 @@
 
 - **Python 3**
 - **Flask** – backend web framework
-- **TensorFlow / Keras** – deep learning models (CNN)
+- **TensorFlow / Keras** – deep learning models 
 - **MediaPipe Hands** – 3D hand landmark detection (21 points)
 - **OpenCV** – image & video frame handling
 - **NumPy, scikit‑learn** – data + evaluation
@@ -57,10 +58,10 @@
 SignLanguageRecognition-SLR/
 ├── app.py                 # Flask web app + real-time detection studio
 ├── preprocessing.py       # ASL dataset preprocessing & landmark extraction
-├── train_model.py         # CNN model training
+├── train_model.py         # Neural network model training (MLP)
 ├── evaluate_model.py      # Model evaluation & plots
-├── realtime_detection.py  # (Optional) standalone webcam script
-├── models/                # Trained CNN models (.h5 files)
+├── check_dataset.py       # Dataset structure verification tool
+├── models/                # Trained models (.h5 files)
 ├── processed_data/        # Saved NumPy arrays (X_train, y_train, etc.)
 ├── plots/                 # Training curves & confusion matrices
 ├── reports/               # Classification reports
@@ -101,13 +102,16 @@ pip install -r requirements.txt
 ### 3️⃣ Prepare Data & Train Models (First Time Only)
 
 ```bash
-# 1. Preprocess ASL dataset (download + landmarks + splits)
+# 1. (Optional) Check dataset structure
+python check_dataset.py
+
+# 2. Preprocess ASL dataset (download + landmarks + splits)
 python preprocessing.py
 
-# 2. Train CNN model(s)
+# 3. Train neural network model(s)
 python train_model.py
 
-# 3. Evaluate and generate plots/reports
+# 4. Evaluate and generate plots/reports
 python evaluate_model.py
 ```
 
@@ -131,8 +135,8 @@ Then open your browser and go to: `http://localhost:5000`
 - **Step 2 – Normalize & Preprocess**  
   We normalize the landmarks and also **standardize left/right hands** so the model sees a consistent representation.
 
-- **Step 3 – CNN Prediction**  
-  The 63‑D vector is passed to a trained **CNN classifier** that outputs probabilities over **26 classes (A–Z)**.
+- **Step 3 – Neural Network Prediction**  
+  The 63‑D vector is passed to a trained **neural network classifier** (MLP) that outputs probabilities over **29 classes (A–Z + space + del + nothing)**.
 
 - **Step 4 – UI Logic**  
   In `app.py`, we:
@@ -142,7 +146,8 @@ Then open your browser and go to: `http://localhost:5000`
   - Send back both **prediction** and **image_with_landmarks** (base64)
 
 - **Step 5 – Sentence + Speech**  
-  - The front‑end adds stable predictions (seen multiple times) to a running **sentence**  
+  - The front‑end adds stable predictions (85%+ confidence, 6+ consecutive detections, 1+ second duration) to a running **sentence**  
+  - The **delete gesture** removes the last character when detected  
   - A separate `/text-to-speech` route uses **gTTS** to generate an **MP3** and returns it as base64  
   - The browser plays it directly without saving any files manually
 
@@ -158,16 +163,16 @@ Then open your browser and go to: `http://localhost:5000`
 
 - **Real‑Time Detection Studio**
   - Live camera feed with **status badge** (`📷 Camera Off` / `🔴 Live`)
-  - **Model Selector** dropdown (e.g. `CNN`, `CNN_LAST`)
+  - **Model Selector** dropdown (e.g. `CNN (Best)`, `CNN (Final)`)
   - Controls: **Start**, **Stop**, **Clear**
   - Stats: **Letters Detected**, **Words Formed**
   - **Current Gesture** card:
-    - Big letter
+    - Big letter (or SPACE, DEL, NONE for special gestures)
     - Confidence percentage
     - Animated progress bar
   - **Generated Text** card:
     - Running sentence from your signs
-    - **“Speak Text”** button for TTS
+    - **"Speak Text"** button for TTS
 
 This whole UI is rendered from a single `index.html` file that `app.py` creates in the `templates/` folder if it doesn’t exist.
 
@@ -177,17 +182,16 @@ This whole UI is rendered from a single `index.html` file that `app.py` creates 
 
 - **Dataset**
    - **Name:** ASL Alphabet Dataset (Kaggle)
-   - **Classes:** 26 letters (A–Z), each represented by hand‑gesture images
+   - **Classes:** 29 classes total (A–Z + space + del + nothing), each represented by hand‑gesture images
    - Each image is resized and passed through MediaPipe to extract landmarks
   - Data saved as `X_train.npy`, `X_test.npy`, `y_train.npy`, `y_test.npy`
 
 - **Model**
-  - Input: 63‑D landmark vector
-  - Architecture:
-    - 1D convolution layers + BatchNorm + Dropout
-    - Global pooling
-    - Dense layers
-    - Softmax over 26 classes
+  - Input: 63‑D landmark vector (21 landmarks × 3 coordinates)
+  - Architecture: Multi-Layer Perceptron (MLP)
+    - Dense layers (256 → 128 → 64 neurons)
+    - BatchNormalization + Dropout for regularization
+    - Softmax over 29 classes
 
 - **Evaluation**
   - Accuracy, Precision, Recall, F1‑score
@@ -200,9 +204,9 @@ All plots and reports are saved under `plots/` and `reports/`.
 
 ## Common Issues & Fixes
 
-- **“No trained models found!” in console**
+- **"No trained models found!" in console**
   - Make sure you ran `train_model.py`
-  - Check that `models/cnn_baseline.h5` (or similar) actually exists
+  - Check that `models/cnn_baseline.h5` and `models/cnn_last.h5` actually exist
 
 - **Webcam not accessible in the browser**
   - Allow camera permissions for `http://localhost:5000`
@@ -214,14 +218,6 @@ All plots and reports are saved under `plots/` and `reports/`.
   - (Optional) Use a machine with a GPU for training
 
 ---
-
-## Team
-
-- **Haroon** – Model integration, backend logic, real‑time prediction loop  
-- **Saria** – Dataset preprocessing, experiments, evaluation & reports  
-- **Azmeer** – Front‑end UI/UX, text‑to‑speech integration, overall polishing  
-
-*(Roles are approximate; we all helped each other out when things broke.)*
 
 ---
 
