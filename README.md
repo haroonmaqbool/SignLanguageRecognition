@@ -1,301 +1,226 @@
-# Sign Language Recognition System
+## Sign Language Recognition System (COMP‑360 Project)
+ 
+ > “Can we make a computer actually *read our hands*?”  
+ 
+ **Course:** Introduction to Artificial Intelligence (COMP‑360)  
+ **Institution:** Forman Christian College  
+ **Team:** Haroon • Saria • Azmeer  
+ 
+**Idea in one line:**  
+Turn **ASL hand gestures** into **live text and speech** using **MediaPipe**, **neural network models**, and a custom **Flask web app**.
 
-## 🎓 Project Overview
+We trained our models on the public **ASL Alphabet Dataset** (A–Z + space + del + nothing hand signs) from **Kaggle**, and then converted each image into hand‑landmark features using MediaPipe.
 
-**Course:** Introduction to Artificial Intelligence (COMP-360)  
-**Institution:** Forman Christian College  
-**Team:** Haroon, Saria, Azmeer  
-**Instructor:** [Instructor Name]
+---
 
-This project implements a comprehensive **Sign Language Recognition System** using Deep Learning and Computer Vision techniques. The system can recognize American Sign Language (ASL) alphabet gestures and convert them into text, with support for both image upload and real-time webcam detection.
+## What Our Project Can Do
 
-## 🚀 Features
+| Feature | Description |
+|---------|-------------|
+| Real‑time ASL Detection | Reads your hand signs from a webcam and predicts the current letter, space, delete, or nothing. |
+| Modern Web UI | Animated landing page and a "Real‑Time Detection Studio" for live use. |
+| AI Models | Neural network models (MLP) trained on ASL alphabet landmarks. |
+| Sentence Builder | Stable predictions are appended to form full sentences with strict verification (85% confidence + time-based checks). |
+| Delete Gesture | Show the delete gesture to remove the last character from your sentence. |
+| Text‑to‑Speech | One‑click button to speak out the generated sentence using gTTS. |
+| Hand Landmarks | MediaPipe landmarks drawn directly on the video feed for feedback. |
 
-- **Deep Learning Models**: CNN and LSTM architectures for gesture classification
-- **Hand Landmark Extraction**: Using MediaPipe for robust hand detection
-- **Real-time Detection**: Live webcam-based sign language recognition
-- **Web Application**: Flask-based interface for easy interaction
-- **Model Evaluation**: Comprehensive performance analysis and visualization
-- **Multi-model Support**: Switch between CNN and LSTM models
-- **Confidence Scoring**: Detailed prediction confidence and top predictions
+---
 
-## 📁 Project Structure
+## Quick Demo — How It Feels to Use
 
+1. Open the web app → a **landing page** with an animated hand (`🤟`) welcomes you.  
+2. Click **“Try Now →”** → you enter the **Real‑Time Detection Studio**.  
+3. Turn on your webcam → the app starts reading your hand signs letter by letter.  
+4. The **current letter**, **confidence bar**, and **running sentence** update in real time.  
+5. Hit **“Speak Text”** → your sentence is converted to **audio** using gTTS.  
+
+> In simple words: you sign → our model predicts → the app writes it → and then speaks it.
+
+---
+
+## Tech Stack
+
+- **Python 3**
+- **Flask** – backend web framework
+- **TensorFlow / Keras** – deep learning models 
+- **MediaPipe Hands** – 3D hand landmark detection (21 points)
+- **OpenCV** – image & video frame handling
+- **NumPy, scikit‑learn** – data + evaluation
+- **gTTS** – Google Text‑to‑Speech for audio output
+- **HTML / CSS / Vanilla JS** – front‑end (all custom, no big CSS framework)
+
+---
+
+## Project Structure (High‑Level)
+
+```text
+SignLanguageRecognition-SLR/
+├── app.py                 # Flask web app + real-time detection studio
+├── preprocessing.py       # ASL dataset preprocessing & landmark extraction
+├── train_model.py         # Neural network model training (MLP)
+├── evaluate_model.py      # Model evaluation & plots
+├── check_dataset.py       # Dataset structure verification tool
+├── models/                # Trained models (.h5 files)
+├── processed_data/        # Saved NumPy arrays (X_train, y_train, etc.)
+├── plots/                 # Training curves & confusion matrices
+├── reports/               # Classification reports
+├── templates/
+│   └── index.html         # Single-page UI (landing + studio)
+├── requirements.txt
+└── README.md
 ```
-Sign Language Recognition/
-├── preprocessing.py          # Data preprocessing and landmark extraction
-├── train_model.py           # CNN and LSTM model training
-├── evaluate_model.py        # Model evaluation and visualization
-├── realtime_detection.py    # Real-time webcam detection
-├── app.py                   # Flask web application
-├── requirements.txt         # Python dependencies
-├── README.md               # Project documentation
-├── models/                 # Trained model files
-│   ├── cnn_final.h5
-│   └── lstm_final.h5
-├── processed_data/         # Preprocessed dataset
-│   ├── X_train.npy
-│   ├── X_test.npy
-│   ├── y_train.npy
-│   └── y_test.npy
-├── plots/                  # Generated visualizations
-│   ├── cnn_training_history.png
-│   ├── lstm_training_history.png
-│   ├── cnn_confusion_matrix.png
-│   ├── lstm_confusion_matrix.png
-│   └── model_comparison.png
-├── reports/                # Evaluation reports
-│   ├── cnn_classification_report.txt
-│   └── lstm_classification_report.txt
-└── templates/              # Web application templates
-    └── index.html
-```
 
-## 🛠️ Installation & Setup
+> Note: Some filenames (e.g. model names) may change as we experiment, but the overall structure stays the same.
 
-### Prerequisites
+---
 
-- Python 3.7 or higher
-- Webcam (for real-time detection)
-- At least 4GB RAM (8GB recommended)
-- GPU support (optional, for faster training)
+## How to Run the Project
 
-### Step 1: Clone/Download Project
+### 1️⃣ Set Up Environment
+
+- Install **Python 3.8+**
+- Make sure you have a **webcam** connected
 
 ```bash
-# If using git
-git clone [repository-url]
-cd sign-language-recognition
+# (Optional but recommended) create virtual environment
+python -m venv slr_env
 
-# Or download and extract the project files
+# Activate (Windows)
+slr_env\Scripts\activate
+
+# Activate (macOS / Linux)
+source slr_env/bin/activate
 ```
 
-### Step 2: Create Virtual Environment
-
-```bash
-# Create virtual environment
-python -m venv sign_lang_env
-
-# Activate virtual environment
-# On Windows:
-sign_lang_env\Scripts\activate
-# On macOS/Linux:
-source sign_lang_env/bin/activate
-```
-
-### Step 3: Install Dependencies
+### 2️⃣ Install Dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### Step 4: Run the Complete Pipeline
+### 3️⃣ Prepare Data & Train Models (First Time Only)
 
 ```bash
-# 1. Preprocess the dataset
+# 1. (Optional) Check dataset structure
+python check_dataset.py
+
+# 2. Preprocess ASL dataset (download + landmarks + splits)
 python preprocessing.py
 
-# 2. Train the models
+# 3. Train neural network model(s)
 python train_model.py
 
-# 3. Evaluate the models
-python evaluate_model.py
-
-# 4. Run real-time detection (optional)
-python realtime_detection.py
-
-# 5. Start the web application
-python app.py
-```
-
-## 📊 Usage Guide
-
-### 1. Data Preprocessing (`preprocessing.py`)
-
-This module downloads the ASL alphabet dataset and extracts hand landmarks:
-
-```bash
-python preprocessing.py
-```
-
-**Features:**
-- Downloads dataset from KaggleHub
-- Extracts 21 hand landmarks per image
-- Resizes images to 128×128 pixels
-- Splits data into train/test sets (80/20)
-- Saves processed data as NumPy arrays
-
-### 2. Model Training (`train_model.py`)
-
-Trains both CNN and LSTM models for sign language classification:
-
-```bash
-python train_model.py
-```
-
-**Features:**
-- Builds 1D CNN model for spatial feature extraction
-- Builds LSTM model for temporal sequence processing
-- Implements data augmentation and regularization
-- Saves best and final model versions
-- Generates training history plots
-
-### 3. Model Evaluation (`evaluate_model.py`)
-
-Comprehensive evaluation of trained models:
-
-```bash
+# 4. Evaluate and generate plots/reports
 python evaluate_model.py
 ```
 
-**Features:**
-- Loads trained models and test data
-- Generates confusion matrices
-- Creates performance comparison charts
-- Produces detailed classification reports
-- Saves evaluation results and visualizations
+Make sure trained models (e.g. `cnn_baseline.h5`, `cnn_last.h5`) are inside the `models/` folder, because `app.py` expects them there.
 
-### 4. Real-time Detection (`realtime_detection.py`)
-
-Live webcam-based sign language recognition:
-
-```bash
-python realtime_detection.py
-```
-
-**Features:**
-- Real-time webcam capture
-- Live hand landmark extraction
-- Instant gesture prediction
-- Confidence score display
-- Keyboard controls for interaction
-
-**Controls:**
-- `q`: Quit detection
-- `h`: Toggle hand landmarks
-- `s`: Save current frame
-- `c`: Clear prediction history
-
-### 5. Web Application (`app.py`)
-
-Flask-based web interface for image upload and prediction:
+### 4️⃣ Run the Web App
 
 ```bash
 python app.py
 ```
 
-**Features:**
-- Image upload and prediction
-- Model selection (CNN/LSTM)
-- Hand landmark visualization
-- Confidence score display
-- Responsive web interface
-
-**Access:** Open your browser and go to `http://localhost:5000`
-
-## 🧠 Technical Details
-
-### Model Architecture
-
-**CNN Model:**
-- Input: 63-dimensional hand landmarks (21 points × 3 coordinates)
-- Conv1D layers with BatchNormalization and Dropout
-- Global Average Pooling
-- Dense layers with regularization
-- Output: 26 classes (A-Z)
-
-**LSTM Model:**
-- Input: Reshaped landmarks (21, 3)
-- LSTM layers with dropout
-- Dense layers for classification
-- Output: 26 classes (A-Z)
-
-### Hand Landmark Extraction
-
-- Uses MediaPipe Hands solution
-- Extracts 21 hand landmarks per image
-- Each landmark has (x, y, z) coordinates
-- Robust to hand orientation and lighting
-
-### Dataset
-
-- **Source**: KaggleHub - ASL Alphabet Dataset
-- **Classes**: 26 letters (A-Z)
-- **Images**: Hand gesture photos
-- **Preprocessing**: Resize to 128×128, landmark extraction
-
-## 📈 Performance Metrics
-
-The system provides comprehensive evaluation metrics:
-
-- **Accuracy**: Overall classification accuracy
-- **Precision**: Per-class precision scores
-- **Recall**: Per-class recall scores
-- **F1-Score**: Harmonic mean of precision and recall
-- **Confusion Matrix**: Detailed classification breakdown
-- **Training History**: Loss and accuracy curves
-
-## 🔧 Troubleshooting
-
-### Common Issues
-
-1. **"No trained models found"**
-   - Run `python train_model.py` first
-   - Ensure models are saved in `models/` directory
-
-2. **"Dataset not found"**
-   - Run `python preprocessing.py` first
-   - Check internet connection for KaggleHub download
-
-3. **Webcam not working**
-   - Ensure webcam is connected and not used by other applications
-   - Check camera permissions
-
-4. **Memory errors during training**
-   - Reduce batch size in `train_model.py`
-   - Use smaller model architectures
-   - Close other applications
-
-### Performance Optimization
-
-- **GPU Support**: Install TensorFlow with GPU support for faster training
-- **Batch Size**: Adjust batch size based on available memory
-- **Model Complexity**: Reduce model size for faster inference
-
-## 📚 Dependencies
-
-See `requirements.txt` for complete list of dependencies:
-
-- **TensorFlow/Keras**: Deep learning framework
-- **OpenCV**: Computer vision operations
-- **MediaPipe**: Hand landmark extraction
-- **NumPy**: Numerical computations
-- **Scikit-learn**: Machine learning utilities
-- **Matplotlib/Seaborn**: Visualization
-- **Flask**: Web application framework
-
-## 🎯 Future Enhancements
-
-- **PSL Support**: Add Pakistani Sign Language gestures
-- **Word Recognition**: Extend to full words and phrases
-- **Mobile App**: Develop mobile application
-- **Real-time Translation**: Add text-to-speech functionality
-- **Gesture Recording**: Allow users to record custom gestures
-
-## 📄 License
-
-This project is developed for educational purposes as part of the COMP-360 course at Forman Christian College.
-
-## 👥 Team
-
-- **Haroon** - [Role/Contribution]
-- **Saria** - [Role/Contribution]  
-- **Azmeer** - [Role/Contribution]
-
-## 📞 Support
-
-For questions or issues, please contact the development team or refer to the course instructor.
+Then open your browser and go to: `http://localhost:5000`
 
 ---
 
-**Note**: This project is designed for educational purposes and demonstrates the application of deep learning and computer vision techniques in sign language recognition.
+## How It Works (Short Version)
+
+- **Step 1 – Detect the Hand**  
+  We use **MediaPipe Hands** to detect a single hand and extract **21 landmarks** `(x, y, z)` → flattened into a **63‑dimensional vector**.
+
+- **Step 2 – Normalize & Preprocess**  
+  We normalize the landmarks and also **standardize left/right hands** so the model sees a consistent representation.
+
+- **Step 3 – Neural Network Prediction**  
+  The 63‑D vector is passed to a trained **neural network classifier** (MLP) that outputs probabilities over **29 classes (A–Z + space + del + nothing)**.
+
+- **Step 4 – UI Logic**  
+  In `app.py`, we:
+  - Capture frames from the webcam in the browser
+  - Send each frame to `/predict` (Flask route)
+  - Draw **landmarks** on top of the image on the server side
+  - Send back both **prediction** and **image_with_landmarks** (base64)
+
+- **Step 5 – Sentence + Speech**  
+  - The front‑end adds stable predictions (85%+ confidence, 6+ consecutive detections, 1+ second duration) to a running **sentence**  
+  - The **delete gesture** removes the last character when detected  
+  - A separate `/text-to-speech` route uses **gTTS** to generate an **MP3** and returns it as base64  
+  - The browser plays it directly without saving any files manually
+
+---
+
+## Web App Overview (What We Built in `app.py`)
+
+- **Landing Page**
+  - Big animated **🤟 hand icon**
+  - Soft green **particle background** and **grid animation**
+  - Our team & course info displayed
+  - Four feature cards: Real‑time, AI‑powered, Text Generation, High Accuracy
+
+- **Real‑Time Detection Studio**
+  - Live camera feed with **status badge** (`📷 Camera Off` / `🔴 Live`)
+  - **Model Selector** dropdown (e.g. `CNN (Best)`, `CNN (Final)`)
+  - Controls: **Start**, **Stop**, **Clear**
+  - Stats: **Letters Detected**, **Words Formed**
+  - **Current Gesture** card:
+    - Big letter (or SPACE, DEL, NONE for special gestures)
+    - Confidence percentage
+    - Animated progress bar
+  - **Generated Text** card:
+    - Running sentence from your signs
+    - **"Speak Text"** button for TTS
+
+This whole UI is rendered from a single `index.html` file that `app.py` creates in the `templates/` folder if it doesn’t exist.
+
+---
+
+## Model & Dataset Details
+
+- **Dataset**
+   - **Name:** ASL Alphabet Dataset (Kaggle)
+   - **Classes:** 29 classes total (A–Z + space + del + nothing), each represented by hand‑gesture images
+   - Each image is resized and passed through MediaPipe to extract landmarks
+  - Data saved as `X_train.npy`, `X_test.npy`, `y_train.npy`, `y_test.npy`
+
+- **Model**
+  - Input: 63‑D landmark vector (21 landmarks × 3 coordinates)
+  - Architecture: Multi-Layer Perceptron (MLP)
+    - Dense layers (256 → 128 → 64 neurons)
+    - BatchNormalization + Dropout for regularization
+    - Softmax over 29 classes
+
+- **Evaluation**
+  - Accuracy, Precision, Recall, F1‑score
+  - Confusion matrices for each model
+  - Training curves (loss & accuracy)
+
+All plots and reports are saved under `plots/` and `reports/`.
+
+---
+
+## Common Issues & Fixes
+
+- **"No trained models found!" in console**
+  - Make sure you ran `train_model.py`
+  - Check that `models/cnn_baseline.h5` and `models/cnn_last.h5` actually exist
+
+- **Webcam not accessible in the browser**
+  - Allow camera permissions for `http://localhost:5000`
+  - Close other apps using the camera (Zoom, Teams, etc.)
+
+- **Slow performance**
+  - Use a smaller webcam resolution
+  - Close extra programs
+  - (Optional) Use a machine with a GPU for training
+
+---
+
+
+
+## Note
+
+This project was built **for educational purposes** as part of **COMP‑360 (Introduction to Artificial Intelligence)** at **Forman Christian College**.  

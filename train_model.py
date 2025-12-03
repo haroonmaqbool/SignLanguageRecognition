@@ -1,412 +1,438 @@
 """
-Sign Language Recognition - Model Training Module
-===============================================
-
-Project: Sign Language Recognition System
-Course: Introduction to Artificial Intelligence (COMP-360)
-Institution: Forman Christian College
+======================================================
+Sign Language Recognition - Model Training (Improved)
+======================================================
+This script implements improved models for sign language recognition.
 Team: Haroon, Saria, Azmeer
-Instructor: [Instructor Name]
-
-Description:
-This module handles the training of deep learning models for sign language recognition.
-It loads preprocessed data from preprocessing.py and trains both CNN and LSTM models
-to classify ASL alphabet gestures based on hand landmarks extracted via MediaPipe.
-
-Features:
-- Loads preprocessed hand landmark data
-- Builds and trains CNN model for spatial feature extraction
-- Builds and trains LSTM model for temporal sequence processing
-- Implements data augmentation and regularization
-- Saves trained models as .h5 files
-- Provides training progress visualization
-
-Requirements:
-- TensorFlow/Keras
-- NumPy, Matplotlib
-- Scikit-learn for metrics
-- Preprocessed data from preprocessing.py
-
-Author: AI Coding Assistant
-Date: 2024
+Course: COMP-360 - Introduction to Artificial Intelligence
+Institution: Forman Christian College
 """
 
-# Step 1 - Import Required Libraries
-import numpy as np
-import matplotlib.pyplot as plt
-from sklearn.metrics import classification_report, confusion_matrix
-import seaborn as sns
-from tensorflow.keras.models import Sequential, Model
-from tensorflow.keras.layers import Dense, LSTM, Conv1D, MaxPooling1D, Dropout, BatchNormalization
-from tensorflow.keras.layers import Input, Reshape, Flatten, GlobalAveragePooling1D
-from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau, ModelCheckpoint
-from tensorflow.keras.utils import plot_model
 import os
-import time
+import numpy as np
+import tensorflow as tf
+import json
+import matplotlib
+import matplotlib.pyplot as plt
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, Dropout, Conv1D, MaxPooling1D, Flatten, Reshape, BatchNormalization
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
+from pathlib import Path
+from sklearn.model_selection import train_test_split as split
+import traceback
 
-def load_preprocessed_data():
-    """
-    Load preprocessed data from preprocessing.py output.
+
+Alphabets = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ") + [" ", "DEL", "NONE"]
+Num_Alphabets = 29  # 26 letters + space + del + nothing = 29 classes
+Dimensions = 63  # 21 landmarks × 3 coordinates
+
+USE_CONV1D = False  # Set to True to use Conv1D instead of MLP
+
+# Overfit debug mode (set via environment variable)
+Overfit = (
+    os.getenv('Overfit', '0') == '1' or 
+    os.getenv('OVERFIT_DEBUG', '0') == '1' or
+    os.getenv('overfit', '0') == '1'
+)
+
+if Overfit:
+    print("  OVERFIT DEBUG MODE ENABLED")
+    print("   Set via environment variable: Overfit=1 or OVERFIT_DEBUG=1")
+
+Script_dir = Path(__file__).parent.absolute()
+
+
+def save_training_history(history, model_name):
+    """Save training history to JSON file."""
     
-    Returns:
-        tuple: (X_train, X_test, y_train, y_test) - Training and test data
-    """
-    print("📥 Loading preprocessed data...")
+    # Create logs directory
+    logs_dir = Script_dir / "logs"
+    logs_dir.mkdir(exist_ok=True)
+    
+    # Prepare history dictionary
+    history_dict = {
+        'train_accuracy': [float(x) for x in history.history['accuracy']],
+        'val_accuracy': [float(x) for x in history.history['val_accuracy']],
+        'train_loss': [float(x) for x in history.history['loss']],
+        'val_loss': [float(x) for x in history.history['val_loss']],
+        'epochs': len(history.history['accuracy']),
+        'best_val_accuracy': float(max(history.history['val_accuracy'])),
+        'final_train_accuracy': float(history.history['accuracy'][-1]),
+        'final_val_accuracy': float(history.history['val_accuracy'][-1])
+    }
+    
+    # Add learning rate history if available
+    if 'lr' in history.history:
+        history_dict['learning_rate'] = [float(x) for x in history.history['lr']]
+    
+    # Save to JSON
+    log_path = logs_dir / f'{model_name}_history.json'
+    with open(log_path, 'w') as f:
+        json.dump(history_dict, f, indent=2)
+    
+    print(f"\n Training history saved: {log_path}")
+    print(f"   Epochs trained: {history_dict['epochs']}")
+    print(f"   Best val accuracy: {history_dict['best_val_accuracy']:.4f}")
+    
+    return history_dict
+
+
+def plot_training_history(history, model_name):
+    """Plot and save training curves."""
+    matplotlib.use('Agg')  # Non-interactive backend
+
+    # Create plots directory
+    plots_dir = Script_dir / "plots"
+    plots_dir.mkdir(exist_ok=True)
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+    
+    # Accuracy plot
+    epochs_range = range(1, len(history.history['accuracy']) + 1)
+    ax1.plot(epochs_range, history.history['accuracy'], 
+             label='Train Accuracy', linewidth=2, marker='o', markersize=3)
+    ax1.plot(epochs_range, history.history['val_accuracy'], 
+             label='Val Accuracy', linewidth=2, marker='s', markersize=3)
+    ax1.set_xlabel('Epoch', fontsize=12)
+    ax1.set_ylabel('Accuracy', fontsize=12)
+    ax1.set_title(f'{model_name} - Accuracy', fontsize=14, fontweight='bold')
+    ax1.legend(fontsize=10)
+    ax1.grid(True, alpha=0.3)
+    
+    # Loss plot
+    ax2.plot(epochs_range, history.history['loss'], 
+             label='Train Loss', linewidth=2, marker='o', markersize=3)
+    ax2.plot(epochs_range, history.history['val_loss'], 
+             label='Val Loss', linewidth=2, marker='s', markersize=3)
+    ax2.set_xlabel('Epoch', fontsize=12)
+    ax2.set_ylabel('Loss', fontsize=12)
+    ax2.set_title(f'{model_name} - Loss', fontsize=14, fontweight='bold')
+    ax2.legend(fontsize=10)
+    ax2.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    
+    plot_path = plots_dir / f"{model_name}_training_curves.png"
+    plt.savefig(str(plot_path), dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    print(f" Training curves saved: {plot_path}")
+
+
+def load_data():
+    """Load preprocessed data from processed_data directory."""
+    print("=" * 60)
+    print("Loading preprocessed data")
+    print("=" * 60)
     
     try:
-        # Load preprocessed data
-        X_train = np.load("processed_data/X_train.npy")
-        X_test = np.load("processed_data/X_test.npy")
-        y_train = np.load("processed_data/y_train.npy")
-        y_test = np.load("processed_data/y_test.npy")
+        data_dir = Script_dir / "processed_data"
+        X_train = np.load(str(data_dir / "X_train.npy"))
+        X_test = np.load(str(data_dir / "X_test.npy"))
+        y_train = np.load(str(data_dir / "y_train.npy"))
+        y_test = np.load(str(data_dir / "y_test.npy"))
         
-        print(f"✅ Data loaded successfully!")
-        print(f"   📊 Training set: {X_train.shape[0]} samples")
-        print(f"   📊 Test set: {X_test.shape[0]} samples")
-        print(f"   📊 Feature dimensions: {X_train.shape[1]}")
-        print(f"   📊 Number of classes: {y_train.shape[1]}")
+        print(f" Data loaded successfully!")
+        print(f"   Training samples: {X_train.shape[0]}")
+        print(f"   Test samples: {X_test.shape[0]}")
         
         return X_train, X_test, y_train, y_test
         
     except FileNotFoundError as e:
-        print(f"❌ Error: {e}")
-        print("Please run preprocessing.py first to generate the required data files.")
+        print(f" Error: Could not find data file: {e}")
+        print("Please run A2_preprocessing.py first to generate processed data.")
+        return None, None, None, None
+    except Exception as e:
+        print(f" Error loading data: {e}")
         return None, None, None, None
 
-def build_cnn_model(input_shape, num_classes):
-    """
-    Build a 1D CNN model for hand landmark classification.
+
+def sanity_checks(X_train, X_test, y_train, y_test):
+    """Perform sanity checks on the loaded data."""
+    print("\n" + "=" * 60)
+    print("Running sanity checks")
+    print("=" * 60)
     
-    Args:
-        input_shape (tuple): Input shape for the model
-        num_classes (int): Number of output classes
-        
-    Returns:
-        Model: Compiled CNN model
-    """
-    print("🏗️  Building CNN model...")
+    # Check shapes
+    print("\n1. Checking data shapes")
+    assert len(X_train.shape) == 2, f"X_train should be 2D, got shape {X_train.shape}"
+    assert len(X_test.shape) == 2, f"X_test should be 2D, got shape {X_test.shape}"
+    assert X_train.shape[1] == Dimensions, f"X_train feature dim should be {Dimensions}, got {X_train.shape[1]}"
+    assert X_test.shape[1] == Dimensions, f"X_test feature dim should be {Dimensions}, got {X_test.shape[1]}"
+    assert y_train.shape[1] == Num_Alphabets, f"y_train should have {Num_Alphabets} classes, got {y_train.shape[1]}"
+    assert y_test.shape[1] == Num_Alphabets, f"y_test should have {Num_Alphabets} classes, got {y_test.shape[1]}"
+    print("   All shape assertions passed")
+    
+    # Check for NaN/Inf
+    print("\n2. Checking for NaN and Inf values")
+    if np.isnan(X_train).any():
+        print("    WARNING: NaN values found in X_train!")
+        return False
+    if np.isnan(X_test).any():
+        print("    WARNING: NaN values found in X_test!")
+        return False
+    if np.isinf(X_train).any():
+        print("    WARNING: Inf values found in X_train!")
+        return False
+    if np.isinf(X_test).any():
+        print("    WARNING: Inf values found in X_test!")
+        return False
+    print("   No NaN or Inf values found")
+    
+    print("\n3. Checking normalization...")
+    train_mean = np.mean(X_train)
+    train_std = np.std(X_train)
+    print(f"   X_train mean: {train_mean:.6f} (should be ≈0)")
+    print(f"   X_train std: {train_std:.6f} (should be ≈1)")
+    
+    if abs(train_mean) > 0.1:
+        print("   WARNING: Data doesn't appear to be normalized (mean not near 0)")
+        print("   Please re-run A2_preprocessing.py with normalization enabled")
+    else:
+        print("   Data appears to be normalized")
+
+    print("\n4. Checking one-hot encoding...")
+    train_sum = np.sum(y_train, axis=1)
+    test_sum = np.sum(y_test, axis=1)
+    if not np.allclose(train_sum, 1.0):
+        print("    WARNING: y_train is not properly one-hot encoded!")
+        return False
+    if not np.allclose(test_sum, 1.0):
+        print("    WARNING: y_test is not properly one-hot encoded!")
+        return False
+    print("   One-hot encoding verified")
+    
+
+    print("\n5. Class distribution:")
+    train_classes = np.argmax(y_train, axis=1)
+    test_classes = np.argmax(y_test, axis=1)
+    
+    print("   Training set class counts:")
+    for i in range(min(5, Num_Alphabets)):  
+        count = np.sum(train_classes == i)
+        print(f"      {Alphabets[i]}: {count}")
+    print("      ...")
+    
+    print("\n All sanity checks passed!")
+    return True
+
+
+def build_mlp_model(input_dim, Num_Alphabets):
+    """Build improved MLP model with BatchNormalization and better regularization."""
+    
+    print("\n Building improved MLP model")
     
     model = Sequential([
-        # Reshape input for 1D convolution
-        Reshape((21, 3), input_shape=input_shape),
-        
-        # First Conv1D block
-        Conv1D(64, 3, activation='relu', padding='same'),
+        Dense(256, activation='relu', input_shape=(input_dim,)), # First hidden layer
         BatchNormalization(),
-        MaxPooling1D(2),
-        Dropout(0.25),
+        Dropout(0.4),
         
-        # Second Conv1D block
-        Conv1D(128, 3, activation='relu', padding='same'),
+        Dense(128, activation='relu'),         # Second hidden layer
         BatchNormalization(),
-        MaxPooling1D(2),
-        Dropout(0.25),
+        Dropout(0.4),
         
-        # Third Conv1D block
-        Conv1D(256, 3, activation='relu', padding='same'),
-        BatchNormalization(),
-        GlobalAveragePooling1D(),
-        Dropout(0.5),
-        
-        # Dense layers
-        Dense(512, activation='relu'),
-        BatchNormalization(),
-        Dropout(0.5),
-        Dense(256, activation='relu'),
+        Dense(64, activation='relu'),         # Third hidden layer
         Dropout(0.3),
-        Dense(num_classes, activation='softmax')
+        
+        Dense(Num_Alphabets, activation='softmax')         # Output layer
     ])
     
-    # Compile model
-    model.compile(
-        optimizer=Adam(learning_rate=0.001),
-        loss='categorical_crossentropy',
-        metrics=['accuracy']
-    )
-    
-    print("✅ CNN model built successfully!")
     return model
 
-def build_lstm_model(input_shape, num_classes):
-    """
-    Build an LSTM model for hand landmark sequence classification.
-    
-    Args:
-        input_shape (tuple): Input shape for the model
-        num_classes (int): Number of output classes
-        
-    Returns:
-        Model: Compiled LSTM model
-    """
-    print("🏗️  Building LSTM model...")
-    
+
+def build_conv1d_model(input_dim, Num_Alphabets):
+    """Build Conv1D model for sequence data."""
+    print("\n  Building Conv1D model")
     model = Sequential([
-        # Reshape input for LSTM
-        Reshape((21, 3), input_shape=input_shape),
-        
-        # LSTM layers
-        LSTM(128, return_sequences=True, dropout=0.2, recurrent_dropout=0.2),
-        BatchNormalization(),
-        LSTM(64, return_sequences=False, dropout=0.2, recurrent_dropout=0.2),
-        BatchNormalization(),
-        
-        # Dense layers
-        Dense(256, activation='relu'),
-        BatchNormalization(),
-        Dropout(0.5),
-        Dense(128, activation='relu'),
-        Dropout(0.3),
-        Dense(num_classes, activation='softmax')
+        Reshape((21, 3), input_shape=(input_dim,)),
+        Conv1D(64, 3, activation='relu'),
+        MaxPooling1D(2),
+        Flatten(),
+        Dense(64, activation='relu'),
+        Dense(Num_Alphabets, activation='softmax')
     ])
-    
-    # Compile model
-    model.compile(
-        optimizer=Adam(learning_rate=0.001),
-        loss='categorical_crossentropy',
-        metrics=['accuracy']
-    )
-    
-    print("✅ LSTM model built successfully!")
     return model
 
-def train_model(model, X_train, y_train, X_test, y_test, model_name, epochs=100):
-    """
-    Train the specified model with callbacks and monitoring.
+
+def train_model(model, X_train, y_train, X_test, y_test, model_name="cnn_baseline"):
+    """Train the model with specified parameters."""
+    print("\n" + "=" * 60)
+    print(f"Training {model_name} model")
+    print("=" * 60)
     
-    Args:
-        model: Keras model to train
-        X_train, y_train: Training data
-        X_test, y_test: Test data
-        model_name (str): Name for saving the model
-        epochs (int): Number of training epochs
-        
-    Returns:
-        History: Training history object
-    """
-    print(f"\n🚀 Training {model_name} model...")
-    print(f"   📊 Epochs: {epochs}")
-    print(f"   📊 Training samples: {X_train.shape[0]}")
-    print(f"   📊 Test samples: {X_test.shape[0]}")
+    # Split training data into train and validation
+    X_train_split, X_val, y_train_split, y_val = split(
+        X_train,
+        y_train,
+        test_size=0.2,  # 20% of training data for validation
+        random_state=42,
+        stratify=np.argmax(y_train, axis=1)  # Maintain class balance
+    )
     
-    # Define callbacks
-    callbacks = [
-        EarlyStopping(
-            monitor='val_accuracy',
-            patience=15,
-            restore_best_weights=True,
-            verbose=1
-        ),
-        ReduceLROnPlateau(
-            monitor='val_loss',
-            factor=0.5,
-            patience=10,
-            min_lr=1e-7,
-            verbose=1
-        ),
-        ModelCheckpoint(
-            f'models/{model_name}_best.h5',
-            monitor='val_accuracy',
-            save_best_only=True,
-            verbose=1
-        )
-    ]
+    print(f"\n Data split:")
+    print(f"   Training: {X_train_split.shape[0]} samples ({X_train_split.shape[0]/X_train.shape[0]*100:.1f}% of train)")
+    print(f"   Validation: {X_val.shape[0]} samples ({X_val.shape[0]/X_train.shape[0]*100:.1f}% of train)")
+    print(f"   Test (held out): {X_test.shape[0]} samples")
     
     # Create models directory
-    os.makedirs('models', exist_ok=True)
+    models_dir = Script_dir / "models"
+    models_dir.mkdir(exist_ok=True)
     
-    # Train model
-    start_time = time.time()
-    history = model.fit(
-        X_train, y_train,
-        validation_data=(X_test, y_test),
-        epochs=epochs,
-        batch_size=32,
-        callbacks=callbacks,
+    # Compile model
+    model.compile(
+        optimizer=Adam(learning_rate=5e-4),
+        loss='categorical_crossentropy',
+        metrics=['accuracy']
+    )
+    
+    print(f"\n  Model compiled:")
+    print(f"   Optimizer: Adam")
+    print(f"   Loss: categorical_crossentropy")
+    print(f"   Metrics: accuracy")
+    
+    # Print model summary
+    print("\n Model architecture:")
+    model.summary()
+    
+    # Setup callbacks
+    checkpoint_path = str(models_dir / f"{model_name}.h5")
+    checkpoint = ModelCheckpoint(
+        checkpoint_path,
+        save_best_only=True,
+        monitor='val_accuracy',
+        mode='max',
         verbose=1
     )
     
-    training_time = time.time() - start_time
-    print(f"✅ {model_name} training completed in {training_time:.2f} seconds!")
+    early_stopping = EarlyStopping(
+        monitor='val_accuracy',
+        mode='max',
+        patience=15,
+        verbose=1,
+        restore_best_weights=True
+    )
+    
+    reduce_lr = ReduceLROnPlateau(
+        monitor='val_accuracy',
+        factor=0.5,
+        patience=5,
+        min_lr=1e-6,
+        verbose=1,
+        mode='max'
+    )
+    
+    print(f"\n Callbacks configured:")
+    print(f"    ModelCheckpoint (save best model)")
+    print(f"   EarlyStopping (patience=15)")
+    print(f"    ReduceLROnPlateau (patience=5, factor=0.5)")
+    
+    # Training parameters
+    batch_size = 32
+    epochs = 200
+    
+    print(f"\n Training parameters:")
+    print(f"   Batch size: {batch_size}")
+    print(f"   Max epochs: {epochs}")
+    print(f"   Early stopping will stop earlier if no improvement")
+    
+    if Overfit:
+        print(f"\n  OVERFIT DEBUG MODE ACTIVE")
+        print(f"   Using first 256 training samples only")
+        X_train_final = X_train_split[:256]
+        y_train_final = y_train_split[:256]
+    else:
+        X_train_final = X_train_split
+        y_train_final = y_train_split
+    
+    # Train model
+    print(f"\n Starting training...")
+    history = model.fit(
+        X_train_final,
+        y_train_final,
+        batch_size=batch_size,
+        epochs=epochs,
+        validation_data=(X_val, y_val),
+        callbacks=[checkpoint, early_stopping, reduce_lr],
+        verbose=1
+    )
+    
+    # Print final accuracies
+    print("\n" + "=" * 60)
+    print("Training Summary")
+    print("=" * 60)
+    train_acc = history.history['accuracy'][-1]
+    val_acc = history.history['val_accuracy'][-1]
+    print(f"Final training accuracy: {train_acc:.4f} ({train_acc*100:.2f}%)")
+    print(f"Final validation accuracy: {val_acc:.4f} ({val_acc*100:.2f}%)")
+    
+    # Overfit debug check
+    if Overfit:
+        if train_acc < 0.95:
+            print("\n  WARNING: Overfit debug mode did not achieve near-100% train accuracy!")
+            print("   This may indicate issues with preprocessing or labels.")
+        else:
+            print("\n Overfit debug check passed: Model can memorize training data")
+    
+    # Save final model
+    final_model_path = str(models_dir / "cnn_last.h5")
+    model.save(final_model_path)
+    print(f"\n Model saved:")
+    print(f"   Best model: {checkpoint_path}")
+    print(f"   Final model: {final_model_path}")
+    save_training_history(history, model_name)
+    plot_training_history(history, model_name)
     
     return history
 
-def plot_training_history(history, model_name):
-    """
-    Plot training history for accuracy and loss.
-    
-    Args:
-        history: Keras history object
-        model_name (str): Name of the model
-    """
-    print(f"📊 Plotting training history for {model_name}...")
-    
-    # Create plots directory
-    os.makedirs('plots', exist_ok=True)
-    
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5))
-    
-    # Plot accuracy
-    ax1.plot(history.history['accuracy'], label='Training Accuracy')
-    ax1.plot(history.history['val_accuracy'], label='Validation Accuracy')
-    ax1.set_title(f'{model_name} - Model Accuracy')
-    ax1.set_xlabel('Epoch')
-    ax1.set_ylabel('Accuracy')
-    ax1.legend()
-    ax1.grid(True)
-    
-    # Plot loss
-    ax2.plot(history.history['loss'], label='Training Loss')
-    ax2.plot(history.history['val_loss'], label='Validation Loss')
-    ax2.set_title(f'{model_name} - Model Loss')
-    ax2.set_xlabel('Epoch')
-    ax2.set_ylabel('Loss')
-    ax2.legend()
-    ax2.grid(True)
-    
-    plt.tight_layout()
-    plt.savefig(f'plots/{model_name}_training_history.png', dpi=300, bbox_inches='tight')
-    plt.show()
-    
-    print(f"✅ Training history plot saved as 'plots/{model_name}_training_history.png'")
-
-def evaluate_model(model, X_test, y_test, model_name):
-    """
-    Evaluate the trained model and print detailed metrics.
-    
-    Args:
-        model: Trained Keras model
-        X_test, y_test: Test data
-        model_name (str): Name of the model
-    """
-    print(f"\n📊 Evaluating {model_name} model...")
-    
-    # Get predictions
-    y_pred = model.predict(X_test)
-    y_pred_classes = np.argmax(y_pred, axis=1)
-    y_true_classes = np.argmax(y_test, axis=1)
-    
-    # Calculate accuracy
-    test_loss, test_accuracy = model.evaluate(X_test, y_test, verbose=0)
-    
-    print(f"✅ {model_name} Evaluation Results:")
-    print(f"   📊 Test Accuracy: {test_accuracy:.4f} ({test_accuracy*100:.2f}%)")
-    print(f"   📊 Test Loss: {test_loss:.4f}")
-    
-    # Classification report
-    alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-    print(f"\n📋 Classification Report:")
-    print(classification_report(y_true_classes, y_pred_classes, 
-                              target_names=list(alphabet)))
-    
-    return test_accuracy, y_pred_classes, y_true_classes
 
 def main():
-    """
-    Main function to execute the complete model training pipeline.
-    """
+    """Main function to run the training pipeline."""
     print("=" * 60)
-    print("Sign Language Recognition - Model Training Pipeline")
+    print("Sign Language Recognition - Model Training")
     print("=" * 60)
     print("Team: Haroon, Saria, Azmeer")
     print("Course: COMP-360 - Introduction to Artificial Intelligence")
-    print("Institution: Forman Christian College")
     print("=" * 60)
     
-    # Step 1 - Load Preprocessed Data
-    X_train, X_test, y_train, y_test = load_preprocessed_data()
-    
+    # Load data
+    X_train, X_test, y_train, y_test = load_data()
     if X_train is None:
-        print("❌ Failed to load data. Exiting...")
         return
     
-    # Step 2 - Get Data Shapes
-    input_shape = (X_train.shape[1],)
-    num_classes = y_train.shape[1]
+    # Sanity checks
+    if not sanity_checks(X_train, X_test, y_train, y_test):
+        print("\n Sanity checks failed. Exiting")
+        return
     
-    print(f"\n📊 Data Information:")
-    print(f"   • Input shape: {input_shape}")
-    print(f"   • Number of classes: {num_classes}")
-    print(f"   • Feature type: Hand landmarks (21 points × 3 coordinates)")
+    # Build model
+    input_dim = X_train.shape[1]
+    Num_Alphabets_local = y_train.shape[1]
     
-    # Step 3 - Build and Train CNN Model
-    print(f"\n" + "="*50)
-    print("🏗️  CNN MODEL TRAINING")
-    print("="*50)
-    
-    cnn_model = build_cnn_model(input_shape, num_classes)
-    cnn_model.summary()
-    
-    cnn_history = train_model(cnn_model, X_train, y_train, X_test, y_test, 
-                             "cnn", epochs=100)
-    
-    # Step 4 - Build and Train LSTM Model
-    print(f"\n" + "="*50)
-    print("🏗️  LSTM MODEL TRAINING")
-    print("="*50)
-    
-    lstm_model = build_lstm_model(input_shape, num_classes)
-    lstm_model.summary()
-    
-    lstm_history = train_model(lstm_model, X_train, y_train, X_test, y_test, 
-                              "lstm", epochs=100)
-    
-    # Step 5 - Plot Training Histories
-    print(f"\n📊 Generating training visualizations...")
-    plot_training_history(cnn_history, "CNN")
-    plot_training_history(lstm_history, "LSTM")
-    
-    # Step 6 - Evaluate Models
-    print(f"\n" + "="*50)
-    print("📊 MODEL EVALUATION")
-    print("="*50)
-    
-    cnn_accuracy, cnn_pred, cnn_true = evaluate_model(cnn_model, X_test, y_test, "CNN")
-    lstm_accuracy, lstm_pred, lstm_true = evaluate_model(lstm_model, X_test, y_test, "LSTM")
-    
-    # Step 7 - Save Final Models
-    print(f"\n💾 Saving final models...")
-    cnn_model.save('models/cnn_final.h5')
-    lstm_model.save('models/lstm_final.h5')
-    print("✅ Models saved successfully!")
-    
-    # Step 8 - Model Comparison
-    print(f"\n" + "="*50)
-    print("🏆 MODEL COMPARISON")
-    print("="*50)
-    print(f"📊 CNN Model Accuracy: {cnn_accuracy:.4f} ({cnn_accuracy*100:.2f}%)")
-    print(f"📊 LSTM Model Accuracy: {lstm_accuracy:.4f} ({lstm_accuracy*100:.2f}%)")
-    
-    if cnn_accuracy > lstm_accuracy:
-        print(f"🏆 CNN model performs better!")
-        best_model = "CNN"
+    if USE_CONV1D:
+        model = build_conv1d_model(input_dim, Num_Alphabets_local)
+        model_name = "cnn_baseline_conv1d"
     else:
-        print(f"🏆 LSTM model performs better!")
-        best_model = "LSTM"
+        model = build_mlp_model(input_dim, Num_Alphabets_local)
+        model_name = "cnn_baseline"
     
-    print(f"\n" + "="*60)
-    print("🎉 MODEL TRAINING COMPLETE!")
-    print("="*60)
-    print(f"📁 Saved Files:")
-    print(f"   • models/cnn_best.h5 - Best CNN model")
-    print(f"   • models/cnn_final.h5 - Final CNN model")
-    print(f"   • models/lstm_best.h5 - Best LSTM model")
-    print(f"   • models/lstm_final.h5 - Final LSTM model")
-    print(f"   • plots/cnn_training_history.png - CNN training plots")
-    print(f"   • plots/lstm_training_history.png - LSTM training plots")
-    print(f"\n🏆 Best performing model: {best_model}")
-    print("="*60)
+    # Train model
+    history = train_model(model, X_train, y_train, X_test, y_test, model_name)
+    
+    print("\n" + "=" * 60)
+    print(" Training Complete!")
+    print("=" * 60)
+    print("\nNext steps:")
+    print("   1. Run: python A2_evaluate_model.py")
+    print("   2. Run: python A2_app_skeleton.py")
+    print("=" * 60)
+
 
 if __name__ == "__main__":
-    """
-    Execute the model training pipeline when script is run directly.
-    """
     try:
         main()
     except KeyboardInterrupt:
-        print("\n\n⚠️  Training interrupted by user.")
+        print("\n\n Training interrupted by user.")
         print("Exiting gracefully...")
     except Exception as e:
-        print(f"\n❌ An error occurred during training: {e}")
-        print("Please check your setup and try again.")
-
+        print(f"\n An error occurred: {e}")
+        traceback.print_exc()
