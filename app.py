@@ -63,17 +63,15 @@ class SignLanguageApp:
         self.models = {}
         self.alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
         self.current_model = None
-        # Space gesture detection - set to True to enable space gesture detection
-        self.enable_space_gesture = True  # Enabled by default (improved logic distinguishes B from space)
         
-        # Initialize MediaPipe
+        # Initialize MediaPipe - OPTIMIZED FOR VIDEO STREAMING
         self.mp_hands = mp.solutions.hands
         self.hands = self.mp_hands.Hands(
-            static_image_mode=True,
+            static_image_mode=False,  # CHANGED: False for video streaming (much faster!)
             max_num_hands=1,
-            min_detection_confidence=0.3,  # Lowered to 0.3 for better A sign detection
-            min_tracking_confidence=0.3,   # Lowered to 0.3 for better tracking
-            model_complexity=1  # Higher complexity for better accuracy
+            min_detection_confidence=0.5,  # Slightly higher for better accuracy
+            min_tracking_confidence=0.5,   # Better tracking
+            model_complexity=0  # CHANGED: Lower complexity for speed (0 is fastest)
         )
         self.mp_drawing = mp.solutions.drawing_utils
         self.mp_drawing_styles = mp.solutions.drawing_styles
@@ -126,82 +124,6 @@ class SignLanguageApp:
                 landmarks_normalized[i] = 1.0 - landmarks_normalized[i]  # Flip x
             return landmarks_normalized
         return landmarks  # Left hand, no change needed
-    
-    def is_space_gesture(self, landmarks):
-        """
-        Detect if hand gesture is a space gesture (open hand with ALL fingers extended).
-        
-        Space gesture characteristics:
-        - ALL 4 fingers (index, middle, ring, pinky) extended
-        - Thumb extended/pointing away from palm (not tucked)
-        - Hand is open/flat (distinguishes from B which has thumb tucked against palm)
-        
-        Args:
-            landmarks: Array of 63 values (21 landmarks × 3 coordinates)
-        
-        Returns:
-            Boolean: True if gesture appears to be space
-        """
-        # Landmark indices (MediaPipe hand landmarks):
-        # 0 = Wrist, 4 = Thumb tip, 8 = Index tip, 12 = Middle tip, 16 = Ring tip, 20 = Pinky tip
-        # 3 = Thumb IP, 6 = Index PIP, 10 = Middle PIP, 14 = Ring PIP, 18 = Pinky PIP
-        # 5 = Index MCP, 9 = Middle MCP, 13 = Ring MCP, 17 = Pinky MCP
-        
-        # Extract coordinates
-        wrist_x = landmarks[0 * 3 + 0]
-        wrist_y = landmarks[0 * 3 + 1]
-        
-        thumb_tip_x = landmarks[4 * 3 + 0]
-        thumb_tip_y = landmarks[4 * 3 + 1]
-        thumb_ip_x = landmarks[3 * 3 + 0]
-        thumb_ip_y = landmarks[3 * 3 + 1]
-        
-        index_tip_y = landmarks[8 * 3 + 1]
-        index_pip_y = landmarks[6 * 3 + 1]
-        index_mcp_x = landmarks[5 * 3 + 0]
-        index_mcp_y = landmarks[5 * 3 + 1]
-        
-        middle_tip_y = landmarks[12 * 3 + 1]
-        middle_pip_y = landmarks[10 * 3 + 1]
-        
-        ring_tip_y = landmarks[16 * 3 + 1]
-        ring_pip_y = landmarks[14 * 3 + 1]
-        
-        pinky_tip_y = landmarks[20 * 3 + 1]
-        pinky_pip_y = landmarks[18 * 3 + 1]
-        
-        # Check if 4 fingers (index, middle, ring, pinky) are extended
-        index_extended = index_tip_y < index_pip_y
-        middle_extended = middle_tip_y < middle_pip_y
-        ring_extended = ring_tip_y < ring_pip_y
-        pinky_extended = pinky_tip_y < pinky_pip_y
-        
-        four_fingers_extended = index_extended and middle_extended and ring_extended and pinky_extended
-        
-        if not four_fingers_extended:
-            return False  # Not space if 4 fingers aren't extended
-        
-        # Check if thumb is extended (not tucked)
-        # Method 1: Thumb tip should be above thumb IP (extended upward)
-        thumb_extended_up = thumb_tip_y < thumb_ip_y
-        
-        # Method 2: Thumb tip should be away from palm (distance from thumb tip to index MCP)
-        # In B sign, thumb is tucked close to palm. In space, thumb is extended away.
-        thumb_to_index_mcp_dist = np.sqrt(
-            (thumb_tip_x - index_mcp_x)**2 + (thumb_tip_y - index_mcp_y)**2
-        )
-        # Normalized distance threshold (thumb extended if far from index MCP)
-        thumb_away_from_palm = thumb_to_index_mcp_dist > 0.15  # Threshold for thumb being away
-        
-        # Method 3: Thumb tip x-position relative to wrist (for left hand, thumb extended = thumb tip to the left)
-        # This is more reliable for detecting thumb extension
-        thumb_to_left = thumb_tip_x < wrist_x  # Thumb extended to the left (away from palm)
-        
-        # Thumb is extended if it's extended upward AND away from palm
-        thumb_extended = thumb_extended_up and (thumb_away_from_palm or thumb_to_left)
-        
-        # Space gesture: 4 fingers extended AND thumb extended (not tucked)
-        return four_fingers_extended and thumb_extended
     
     def extract_landmarks(self, image):
         """
@@ -274,17 +196,6 @@ class SignLanguageApp:
             }
         
         try:
-            # Check if this is a space gesture BEFORE model prediction (only if enabled)
-            if self.enable_space_gesture and self.is_space_gesture(landmarks):
-                return {
-                    'prediction': ' ',
-                    'confidence': 0.95,  # High confidence for space detection
-                    'top_predictions': [{'letter': ' ', 'confidence': 0.95}],
-                    'model_used': model_to_use,
-                    'error': None,
-                    'is_space': True
-                }
-            
             # Reshape landmarks for model input
             landmarks_reshaped = landmarks.reshape(1, -1)
             
@@ -323,7 +234,7 @@ class SignLanguageApp:
     
     def draw_landmarks_on_image(self, image, hand_landmarks):
         """
-        Draw hand landmarks on the image with proper MediaPipe styling.
+        Draw hand landmarks on the image with RED color styling.
         
         Args:
             image: Input image
@@ -338,13 +249,24 @@ class SignLanguageApp:
         # Create a copy to avoid modifying original
         annotated_image = image.copy()
         
-        # Draw landmarks with connections and proper styling
+        # Custom RED drawing specs
+        landmark_drawing_spec = self.mp_drawing.DrawingSpec(
+            color=(0, 0, 255),  # RED in BGR format
+            thickness=2,
+            circle_radius=3
+        )
+        connection_drawing_spec = self.mp_drawing.DrawingSpec(
+            color=(0, 0, 255),  # RED in BGR format
+            thickness=2
+        )
+        
+        # Draw landmarks with connections using RED color
         self.mp_drawing.draw_landmarks(
             annotated_image,
             hand_landmarks,
             self.mp_hands.HAND_CONNECTIONS,
-            self.mp_drawing_styles.get_default_hand_landmarks_style(),
-            self.mp_drawing_styles.get_default_hand_connections_style()
+            landmark_drawing_spec,
+            connection_drawing_spec
         )
         
         return annotated_image
@@ -387,10 +309,10 @@ def predict():
         if image is None:
             return jsonify({'error': 'Invalid image format'}), 400
         
-        # Resize image if too large
+        # Resize image if too large (OPTIMIZED: smaller max size for speed)
         height, width = image.shape[:2]
-        if height > 1000 or width > 1000:
-            scale = min(1000/height, 1000/width)
+        if height > 480 or width > 640:
+            scale = min(640/width, 480/height)
             new_height = int(height * scale)
             new_width = int(width * scale)
             image = cv2.resize(image, (new_width, new_height))
@@ -406,8 +328,9 @@ def predict():
         if draw_landmarks and hand_landmarks_obj is not None:
             image = sign_lang_app.draw_landmarks_on_image(image, hand_landmarks_obj)
         
-        # Convert image to base64 for display
-        _, buffer = cv2.imencode('.jpg', image)
+        # Convert image to base64 for display (OPTIMIZED: lower quality for speed)
+        encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 70]  # Lower quality = faster
+        _, buffer = cv2.imencode('.jpg', image, encode_param)
         image_base64 = base64.b64encode(buffer).decode('utf-8')
         
         result['image_with_landmarks'] = image_base64
@@ -945,7 +868,7 @@ def create_templates():
             box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
         }
 
-        #video {
+        #video, #displayCanvas {
             width: 100%;
             height: auto;
             display: block;
@@ -1116,7 +1039,7 @@ def create_templates():
             height: 100%;
             background: linear-gradient(90deg, #10b981 0%, #34d399 100%);
             border-radius: 10px;
-            transition: width 0.5s ease;
+            transition: width 0.3s ease;
             box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
         }
 
@@ -1313,7 +1236,8 @@ def create_templates():
         <div class="main-content">
             <div class="camera-panel">
                 <div class="camera-container">
-                    <video id="video" autoplay></video>
+                    <video id="video" autoplay playsinline></video>
+                    <canvas id="displayCanvas" style="display: none;"></canvas>
                     <div class="camera-overlay" id="cameraStatus">📷 Camera Off</div>
                 </div>
                 <div class="model-selector">
@@ -1361,14 +1285,22 @@ def create_templates():
         </div>
     </div>
     <script>
-        let video = document.getElementById('video');
+        // DOM Elements
+        const video = document.getElementById('video');
+        const displayCanvas = document.getElementById('displayCanvas');
+        const displayCtx = displayCanvas.getContext('2d');
+        
+        // State variables
         let currentSentence = '';
         let stream = null;
         let predictionInterval = null;
+        let animationFrameId = null;
         let lastPrediction = '';
         let predictionCount = 0;
         let totalLettersDetected = 0;
         let currentAudio = null;
+        let isPredicting = false;
+        let lastFrameWithLandmarks = null;
 
         function showApp() {
             document.getElementById('landingPage').style.display = 'none';
@@ -1387,36 +1319,63 @@ def create_templates():
 
         async function startCamera() {
             try {
-                stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+                stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        width: { ideal: 640 }, 
+                        height: { ideal: 480 },
+                        frameRate: { ideal: 30 }
+                    } 
+                });
                 video.srcObject = stream;
-                document.getElementById('cameraStatus').textContent = '🔴 Live';
-                document.getElementById('cameraStatus').style.background = 'rgba(239, 68, 68, 0.8)';
-                startPredictionLoop();
+                
+                // Wait for video to be ready
+                video.onloadedmetadata = () => {
+                    // Set canvas size to match video
+                    displayCanvas.width = video.videoWidth;
+                    displayCanvas.height = video.videoHeight;
+                    
+                    document.getElementById('cameraStatus').textContent = '🔴 Live';
+                    document.getElementById('cameraStatus').style.background = 'rgba(239, 68, 68, 0.8)';
+                    
+                    // Start the smooth video display loop
+                    startVideoLoop();
+                    
+                    // Start prediction loop (separate from display)
+                    startPredictionLoop();
+                };
             } catch (err) {
                 alert('Error accessing camera: ' + err.message);
             }
         }
 
         function stopCamera() {
-    if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-        video.srcObject = null;
-        stream = null;
-        document.getElementById('cameraStatus').textContent = '📷 Camera Off';
-        document.getElementById('cameraStatus').style.background = 'rgba(0, 0, 0, 0.8)';
-    }
-    if (predictionInterval) {
-        clearInterval(predictionInterval);
-        predictionInterval = null;
-    }
-    
-    // Show video element again and remove canvas
-    const displayCanvas = document.getElementById('displayCanvas');
-    if (displayCanvas) {
-        displayCanvas.remove();
-    }
-    video.style.display = 'block';
-}
+            // Stop prediction loop
+            if (predictionInterval) {
+                clearInterval(predictionInterval);
+                predictionInterval = null;
+            }
+            
+            // Stop animation frame
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+            
+            // Stop camera stream
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                video.srcObject = null;
+                stream = null;
+            }
+            
+            // Reset display
+            video.style.display = 'block';
+            displayCanvas.style.display = 'none';
+            lastFrameWithLandmarks = null;
+            
+            document.getElementById('cameraStatus').textContent = '📷 Camera Off';
+            document.getElementById('cameraStatus').style.background = 'rgba(0, 0, 0, 0.8)';
+        }
 
         function clearSentence() {
             currentSentence = '';
@@ -1437,9 +1396,91 @@ def create_templates():
             document.getElementById('totalLetters').textContent = totalLettersDetected;
             const words = currentSentence.trim().split(/\\s+/).filter(w => w.length > 0).length;
             document.getElementById('wordsCount').textContent = words;
-            
-            // Enable TTS button if there's text
             document.getElementById('ttsButton').disabled = currentSentence.trim().length === 0;
+        }
+
+        // Smooth video display loop - runs at full frame rate
+        function startVideoLoop() {
+            // Video loop removed - we only draw frames from prediction results
+            // This prevents the blinking caused by two loops fighting over the canvas
+            video.style.display = 'none';
+            displayCanvas.style.display = 'block';
+        }
+
+        // Prediction loop - handles both video display and predictions
+        function startPredictionLoop() {
+            if (predictionInterval) clearInterval(predictionInterval);
+            
+            // Run predictions every 150ms (~7 FPS) for smooth display with landmarks
+            predictionInterval = setInterval(async () => {
+                if (!stream || isPredicting) return;
+                
+                isPredicting = true;
+                
+                try {
+                    // Create a temporary canvas to capture current frame
+                    const tempCanvas = document.createElement('canvas');
+                    tempCanvas.width = video.videoWidth;
+                    tempCanvas.height = video.videoHeight;
+                    const tempCtx = tempCanvas.getContext('2d');
+                    tempCtx.drawImage(video, 0, 0);
+                    
+                    // Convert to blob
+                    const blob = await new Promise(resolve => tempCanvas.toBlob(resolve, 'image/jpeg', 0.8));
+                    
+                    const formData = new FormData();
+                    formData.append('image', blob, 'frame.jpg');
+                    formData.append('model', document.getElementById('modelSelect').value);
+                    formData.append('draw_landmarks', 'true');
+                    
+                    const response = await fetch('/predict', { method: 'POST', body: formData });
+                    const data = await response.json();
+                    
+                    // Update the display with landmarks
+                    if (data.image_with_landmarks) {
+                        const img = new Image();
+                        img.onload = () => {
+                            // Draw the frame with landmarks
+                            displayCtx.drawImage(img, 0, 0, displayCanvas.width, displayCanvas.height);
+                        };
+                        img.src = 'data:image/jpeg;base64,' + data.image_with_landmarks;
+                    }
+                    
+                    // Update prediction display
+                    if (data.prediction) {
+                        document.getElementById('currentLetter').textContent = data.prediction;
+                        const confidencePercent = (data.confidence * 100).toFixed(1);
+                        document.getElementById('confidence').textContent = `Confidence: ${confidencePercent}%`;
+                        document.getElementById('confidenceFill').style.width = confidencePercent + '%';
+                        
+                        // Letter confirmation logic
+                        if (data.confidence > 0.7) {
+                            if (data.prediction === lastPrediction) {
+                                predictionCount++;
+                                if (predictionCount >= 3) {
+                                    currentSentence += data.prediction;
+                                    totalLettersDetected++;
+                                    document.getElementById('sentenceDisplay').textContent = currentSentence || 'Start making gestures...';
+                                    updateStats();
+                                    predictionCount = 0;
+                                    lastPrediction = '';
+                                }
+                            } else {
+                                lastPrediction = data.prediction;
+                                predictionCount = 1;
+                            }
+                        }
+                    } else if (data.error) {
+                        document.getElementById('currentLetter').textContent = '?';
+                        document.getElementById('confidence').textContent = data.error;
+                        document.getElementById('confidenceFill').style.width = '0%';
+                    }
+                } catch (err) {
+                    console.error('Prediction error:', err);
+                } finally {
+                    isPredicting = false;
+                }
+            }, 200);  // 200ms = 5 predictions per second (smooth but not overwhelming)
         }
 
         async function speakText() {
@@ -1456,21 +1497,17 @@ def create_templates():
             try {
                 const response = await fetch('/text-to-speech', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ text: text })
                 });
 
                 const data = await response.json();
 
                 if (data.success) {
-                    // Stop any currently playing audio
                     if (currentAudio) {
                         currentAudio.pause();
                     }
 
-                    // Create and play new audio
                     const audioBlob = base64ToBlob(data.audio, 'audio/mpeg');
                     const audioUrl = URL.createObjectURL(audioBlob);
                     currentAudio = new Audio(audioUrl);
@@ -1512,86 +1549,7 @@ def create_templates():
             return new Blob([byteArray], { type: mimeType });
         }
 
-        function startPredictionLoop() {
-    if (predictionInterval) clearInterval(predictionInterval);
-    predictionInterval = setInterval(async () => {
-        if (!stream) return;
-        const canvas = document.createElement('canvas');
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(video, 0, 0);
-        canvas.toBlob(async (blob) => {
-            const formData = new FormData();
-            formData.append('image', blob, 'frame.jpg');
-            formData.append('model', document.getElementById('modelSelect').value);
-            formData.append('draw_landmarks', 'true');  // ← CHANGED FROM 'false' TO 'true'
-            try {
-                const response = await fetch('/predict', { method: 'POST', body: formData });
-                const data = await response.json();
-                
-                // Display the image with landmarks on the video element
-                if (data.image_with_landmarks) {
-                    const img = new Image();
-                    img.onload = () => {
-                        const tempCanvas = document.createElement('canvas');
-                        tempCanvas.width = video.videoWidth;
-                        tempCanvas.height = video.videoHeight;
-                        const tempCtx = tempCanvas.getContext('2d');
-                        tempCtx.drawImage(img, 0, 0, tempCanvas.width, tempCanvas.height);
-                        
-                        // Create a video-like element to show the processed frame
-                        video.style.display = 'none';
-                        let displayCanvas = document.getElementById('displayCanvas');
-                        if (!displayCanvas) {
-                            displayCanvas = document.createElement('canvas');
-                            displayCanvas.id = 'displayCanvas';
-                            displayCanvas.style.width = '100%';
-                            displayCanvas.style.height = 'auto';
-                            displayCanvas.style.display = 'block';
-                            video.parentNode.insertBefore(displayCanvas, video);
-                        }
-                        displayCanvas.width = tempCanvas.width;
-                        displayCanvas.height = tempCanvas.height;
-                        const displayCtx = displayCanvas.getContext('2d');
-                        displayCtx.drawImage(tempCanvas, 0, 0);
-                    };
-                    img.src = 'data:image/jpeg;base64,' + data.image_with_landmarks;
-                }
-                
-                if (data.prediction) {
-                    document.getElementById('currentLetter').textContent = data.prediction;
-                    const confidencePercent = (data.confidence * 100).toFixed(1);
-                    document.getElementById('confidence').textContent = `Confidence: ${confidencePercent}%`;
-                    document.getElementById('confidenceFill').style.width = confidencePercent + '%';
-                    if (data.confidence > 0.7) {
-                        if (data.prediction === lastPrediction) {
-                            predictionCount++;
-                            if (predictionCount >= 3) {
-                                currentSentence += data.prediction;
-                                totalLettersDetected++;
-                                document.getElementById('sentenceDisplay').textContent = currentSentence || 'Start making gestures...';
-                                updateStats();
-                                predictionCount = 0;
-                                lastPrediction = '';
-                            }
-                        } else {
-                            lastPrediction = data.prediction;
-                            predictionCount = 1;
-                        }
-                    }
-                } else if (data.error) {
-                    document.getElementById('currentLetter').textContent = '?';
-                    document.getElementById('confidence').textContent = data.error;
-                    document.getElementById('confidenceFill').style.width = '0%';
-                }
-            } catch (err) {
-                console.error('Prediction error:', err);
-            }
-        }, 'image/jpeg');
-    }, 1000);
-}
-
+        // Model selector change handler
         document.getElementById('modelSelect').addEventListener('change', (e) => {
             fetch('/set_model', {
                 method: 'POST',
