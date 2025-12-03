@@ -14,9 +14,9 @@ from tensorflow.keras.models import load_model
 from pathlib import Path
 import traceback
 
-# Constants - Will be auto-detected from model/data
-Alphabets = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")  # Default, will be updated
-Num_Alphabets = 26  # Default, will be auto-detected
+# Constants 
+Alphabets = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ") 
+Num_Alphabets = 26 
 
 # Get script directory
 Script_dir = Path(__file__).parent.absolute()
@@ -82,7 +82,7 @@ def load_trained_models():
     models_dir = Script_dir / "models"
     models = {}
     
-    # Load baseline model (required)
+    # Load baseline model
     baseline_path = models_dir / "cnn_baseline.h5"
     if baseline_path.exists():
         try:
@@ -94,7 +94,7 @@ def load_trained_models():
         print(f"  Baseline model not found: {baseline_path}")
         print("   Please run train_model.py first to train the model.")
     
-    # Load final model (optional)
+    # Load final model 
     final_path = models_dir / "cnn_last.h5"
     if final_path.exists():
         try:
@@ -131,7 +131,6 @@ def evaluate_model(model, X_test, y_test, model_name):
     
     # Plot confusion matrix
     print("\nGenerating confusion matrix plot")
-    # Adjust figure size based on number of classes (larger for 29 classes)
     fig_size = (16, 14) if Num_Alphabets > 26 else (14, 12)
     plt.figure(figsize=fig_size)
     plt.imshow(cm, interpolation='nearest', cmap=plt.cm.Blues)
@@ -140,7 +139,6 @@ def evaluate_model(model, X_test, y_test, model_name):
     
     # Add labels
     tick_marks = np.arange(len(Alphabets))
-    # Adjust font size based on number of classes
     font_size = 7 if Num_Alphabets > 26 else 8
     plt.xticks(tick_marks, Alphabets, rotation=45, fontsize=font_size)
     plt.yticks(tick_marks, Alphabets, fontsize=font_size)
