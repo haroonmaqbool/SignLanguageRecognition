@@ -245,7 +245,13 @@ if FLASK_AVAILABLE and WEB_APP_MODE:
     app = Flask(__name__)
     app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
     
-    current_model_name = list(models_dict.keys())[0] if models_dict else None
+    # Always use the best model (CNN (Best) if available, otherwise CNN (Final))
+    if 'CNN (Best)' in models_dict:
+        current_model_name = 'CNN (Best)'
+    elif 'CNN (Final)' in models_dict:
+        current_model_name = 'CNN (Final)'
+    else:
+        current_model_name = list(models_dict.keys())[0] if models_dict else None
     
     def extract_landmarks_from_image(image):
         """
@@ -371,8 +377,8 @@ if FLASK_AVAILABLE and WEB_APP_MODE:
             if file.filename == '':
                 return jsonify({'error': 'No image file selected'}), 400
             
-            # Get model selection
-            model_name = request.form.get('model', current_model_name)
+            # Always use the best model (no user selection)
+            model_name = current_model_name
             
             # Read image
             image_bytes = file.read()
@@ -1295,14 +1301,6 @@ if FLASK_AVAILABLE and WEB_APP_MODE:
                     <canvas id="displayCanvas" style="display: none;"></canvas>
                     <div class="camera-overlay" id="cameraStatus">📷 Camera Off</div>
                 </div>
-                <div class="model-selector">
-                    <label for="modelSelect">AI Model:</label>
-                    <select id="modelSelect">
-                        {% for model in available_models %}
-                        <option value="{{ model }}" {% if model == current_model %}selected{% endif %}>{{ model }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
                 <div class="controls">
                     <button class="control-btn start-btn" onclick="startCamera()">▶ Start</button>
                     <button class="control-btn stop-btn" onclick="stopCamera()">⏹ Stop</button>
@@ -1490,7 +1488,6 @@ if FLASK_AVAILABLE and WEB_APP_MODE:
                     
                     const formData = new FormData();
                     formData.append('image', blob, 'frame.jpg');
-                    formData.append('model', document.getElementById('modelSelect').value);
                     formData.append('draw_landmarks', 'true');
                     
                     const response = await fetch('/predict', { method: 'POST', body: formData });
@@ -1653,16 +1650,6 @@ if FLASK_AVAILABLE and WEB_APP_MODE:
             return new Blob([byteArray], { type: mimeType });
         }
 
-        // Model selector change handler
-        document.getElementById('modelSelect').addEventListener('change', (e) => {
-            fetch('/set_model', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ model: e.target.value })
-            }).then(response => response.json())
-              .then(data => console.log('Model changed to:', data.current_model))
-              .catch(err => console.error('Error changing model:', err));
-        });
     </script>
 </body>
 </html>'''
