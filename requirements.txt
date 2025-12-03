@@ -10,25 +10,23 @@
 
 # Deep Learning Framework
 tensorflow>=2.10.0
-# Note: Keras is included with TensorFlow 2.x (imported as tensorflow.keras)
 
 # Computer Vision and Image Processing
-opencv-python>=4.6.0          # Used in: A2_preprocessing.py, A2_app_skeleton.py, app.py
-mediapipe>=0.9.0              # Used in: A2_preprocessing.py, A2_app_skeleton.py, app.py
-Pillow>=9.0.0                 # Used in: app.py (PIL.Image)
+opencv-python>=4.6.0
+mediapipe>=0.9.0     
+Pillow>=9.0.0   
 
 # Data Science and Machine Learning
-numpy>=1.21.0                 # Used in: All Python files
-scikit-learn>=1.1.0           # Used in: A2_preprocessing.py, A2_train_model.py, A2_evaluate_model.py
+numpy>=1.21.0       
+scikit-learn>=1.1.0       
 
 # Visualization
-matplotlib>=3.5.0             # Used in: A2_evaluate_model.py (for confusion matrix plots)
+matplotlib>=3.5.0           
 
 # Web Framework
-Flask>=2.2.0                  # Used in: A2_app_skeleton.py, app.py
-# Note: Werkzeug comes automatically with Flask
+Flask>=2.2.0  
 
 # Text-to-Speech
-gTTS==2.5.0                   # Used in: A2_app_skeleton.py, app.py
+gTTS==2.5.0  
 
 

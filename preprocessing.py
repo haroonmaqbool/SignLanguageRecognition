@@ -4,7 +4,7 @@ Sign Language Recognition - Data Preprocessing
 ======================================================
 This script implements the complete data preprocessing pipeline for a Sign Language 
 Recognition system. It processes ASL alphabet images to extract hand landmarks and 
-prepares the data for model training (CNN/LSTM).
+prepares the data for model training (CNN).
 Team: Haroon, Saria, Azmeer
 Course: COMP-360 - Introduction to Artificial Intelligence
 Institution: Forman Christian College

@@ -1,12 +1,8 @@
 """
 Dataset Structure Checker
 ========================
-
 This script helps you verify that your ASL alphabet dataset is properly organized
 and ready for preprocessing.
-
-Author: AI Coding Assistant
-Date: 2024
 """
 
 import os
@@ -42,8 +38,6 @@ def check_dataset_structure():
         return False
     
     print(f"[SUCCESS] Found dataset at: {train_path}")
-    
-    # Check dataset structure
     print(f"\nAnalyzing dataset structure at: {train_path}")
     
     found_letters = []
@@ -103,7 +97,7 @@ def check_dataset_structure():
     
     # Check if dataset is ready
     total_classes = len(found_letters) + len(found_special)
-    is_ready = len(found_letters) >= 20  # At least 20 letters required
+    is_ready = len(found_letters) >= 20  
     
     if is_ready:
         print(f"\n[SUCCESS] Dataset is ready for preprocessing!")
