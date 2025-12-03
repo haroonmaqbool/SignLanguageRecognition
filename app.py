@@ -20,12 +20,14 @@ Features:
 - Model selection (CNN/LSTM)
 - Confidence score display
 - Hand landmark visualization
+- Text-to-speech conversion
 - Responsive web interface
 - Batch processing support
 
 Requirements:
 - Flask, OpenCV, MediaPipe, NumPy
 - TensorFlow/Keras for model loading
+- gTTS for text-to-speech
 - Trained models from train_model.py
 
 Author: AI Coding Assistant
@@ -44,6 +46,8 @@ import io
 from PIL import Image
 import time
 import json
+from gtts import gTTS
+import tempfile
 
 # Step 2 - Initialize Flask Application
 app = Flask(__name__)
@@ -72,6 +76,7 @@ class SignLanguageApp:
             model_complexity=1  # Higher complexity for better accuracy
         )
         self.mp_drawing = mp.solutions.drawing_utils
+        self.mp_drawing_styles = mp.solutions.drawing_styles
         
         # Load models
         self.load_models()
@@ -84,7 +89,7 @@ class SignLanguageApp:
         
         model_files = {
             'CNN': 'models/cnn_baseline.h5',
-            'CNN': 'models/cnn_last.h5'
+            'CNN_LAST': 'models/cnn_last.h5'
         }
         
         for model_name, model_path in model_files.items():
@@ -206,7 +211,7 @@ class SignLanguageApp:
             image: Input image (numpy array)
             
         Returns:
-            numpy.ndarray or None: Extracted landmarks (normalized) or None if no hand detected
+            tuple: (landmarks array, hand_landmarks object for drawing) or (None, None) if no hand detected
         """
         # Convert BGR to RGB
         rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -237,9 +242,9 @@ class SignLanguageApp:
             # Normalize to left-hand orientation (flip right hand)
             landmarks = self.normalize_landmarks(landmarks, is_right_hand)
             
-            return landmarks
+            return landmarks, hand_landmarks
         
-        return None
+        return None, None
     
     def predict_gesture(self, landmarks, model_name=None):
         """
@@ -316,30 +321,33 @@ class SignLanguageApp:
                 'error': f'Prediction error: {str(e)}'
             }
     
-    def draw_landmarks_on_image(self, image, landmarks):
+    def draw_landmarks_on_image(self, image, hand_landmarks):
         """
-        Draw hand landmarks on the image.
+        Draw hand landmarks on the image with proper MediaPipe styling.
         
         Args:
             image: Input image
-            landmarks: Hand landmarks
+            hand_landmarks: MediaPipe hand landmarks object
             
         Returns:
             numpy.ndarray: Image with landmarks drawn
         """
-        # Convert BGR to RGB for MediaPipe
-        rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        if hand_landmarks is None:
+            return image
         
-        # Process image
-        results = self.hands.process(rgb_image)
+        # Create a copy to avoid modifying original
+        annotated_image = image.copy()
         
-        if results.multi_hand_landmarks:
-            # Draw landmarks
-            for hand_landmarks in results.multi_hand_landmarks:
-                self.mp_drawing.draw_landmarks(
-                    image, hand_landmarks, self.mp_hands.HAND_CONNECTIONS)
+        # Draw landmarks with connections and proper styling
+        self.mp_drawing.draw_landmarks(
+            annotated_image,
+            hand_landmarks,
+            self.mp_hands.HAND_CONNECTIONS,
+            self.mp_drawing_styles.get_default_hand_landmarks_style(),
+            self.mp_drawing_styles.get_default_hand_connections_style()
+        )
         
-        return image
+        return annotated_image
 
 # Initialize application
 sign_lang_app = SignLanguageApp()
@@ -388,15 +396,15 @@ def predict():
             image = cv2.resize(image, (new_width, new_height))
         
         # Extract landmarks
-        landmarks = sign_lang_app.extract_landmarks(image)
+        landmarks, hand_landmarks_obj = sign_lang_app.extract_landmarks(image)
         
         # Make prediction
         result = sign_lang_app.predict_gesture(landmarks, model_name)
         
         # Draw landmarks on image if requested
         draw_landmarks = request.form.get('draw_landmarks', 'false').lower() == 'true'
-        if draw_landmarks and landmarks is not None:
-            image = sign_lang_app.draw_landmarks_on_image(image, landmarks)
+        if draw_landmarks and hand_landmarks_obj is not None:
+            image = sign_lang_app.draw_landmarks_on_image(image, hand_landmarks_obj)
         
         # Convert image to base64 for display
         _, buffer = cv2.imencode('.jpg', image)
@@ -408,6 +416,43 @@ def predict():
         
     except Exception as e:
         return jsonify({'error': f'Processing error: {str(e)}'}), 500
+
+@app.route('/text-to-speech', methods=['POST'])
+def text_to_speech():
+    """
+    Convert text to speech and return audio file.
+    """
+    try:
+        data = request.get_json()
+        text = data.get('text', '').strip()
+        
+        if not text:
+            return jsonify({'error': 'No text provided'}), 400
+        
+        # Create a temporary file for the audio
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3') as fp:
+            temp_filename = fp.name
+        
+        # Generate speech using gTTS
+        tts = gTTS(text=text, lang='en', slow=False)
+        tts.save(temp_filename)
+        
+        # Read the audio file and convert to base64
+        with open(temp_filename, 'rb') as audio_file:
+            audio_data = audio_file.read()
+            audio_base64 = base64.b64encode(audio_data).decode('utf-8')
+        
+        # Clean up temporary file
+        os.unlink(temp_filename)
+        
+        return jsonify({
+            'success': True,
+            'audio': audio_base64,
+            'text': text
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Text-to-speech error: {str(e)}'}), 500
 
 @app.route('/set_model', methods=['POST'])
 def set_model():
@@ -471,21 +516,6 @@ def internal_error(e):
     return jsonify({'error': 'Internal server error'}), 500
 
 # Step 6 - Main Application
-def create_templates():
-    """
-    Create HTML templates for the web application.
-    """
-    # Create templates directory
-    os.makedirs('templates', exist_ok=True)
-    
-    # Main template
-    #html_content = # Find this function in your app.py (around line 340):
-# Find the create_templates() function in your app.py (around line 340)
-# Replace the entire html_content variable with this COMPLETE code:
-
-# Find the create_templates() function in your app.py (around line 340)
-# Replace the entire html_content variable with this COMPLETE code:
-
 def create_templates():
     """
     Create HTML templates for the web application.
@@ -1123,6 +1153,41 @@ def create_templates():
             word-wrap: break-word;
             min-height: 100px;
             font-weight: 500;
+            margin-bottom: 20px;
+        }
+
+        /* Text-to-Speech Button */
+        .tts-button {
+            padding: 14px 35px;
+            background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 20px rgba(139, 92, 246, 0.3);
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .tts-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(139, 92, 246, 0.5);
+            background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+        }
+
+        .tts-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .tts-button .icon {
+            font-size: 1.2rem;
         }
 
         .stats-grid {
@@ -1287,6 +1352,10 @@ def create_templates():
                 <div class="sentence-box">
                     <h3>Generated Text</h3>
                     <div class="sentence-display" id="sentenceDisplay">Start making gestures to build your message...</div>
+                    <button class="tts-button" id="ttsButton" onclick="speakText()" disabled>
+                        <span class="icon">🔊</span>
+                        <span>Speak Text</span>
+                    </button>
                 </div>
             </div>
         </div>
@@ -1299,6 +1368,7 @@ def create_templates():
         let lastPrediction = '';
         let predictionCount = 0;
         let totalLettersDetected = 0;
+        let currentAudio = null;
 
         function showApp() {
             document.getElementById('landingPage').style.display = 'none';
@@ -1309,6 +1379,10 @@ def create_templates():
             document.getElementById('appPage').classList.remove('active');
             document.getElementById('landingPage').style.display = 'flex';
             stopCamera();
+            if (currentAudio) {
+                currentAudio.pause();
+                currentAudio = null;
+            }
         }
 
         async function startCamera() {
@@ -1324,18 +1398,25 @@ def create_templates():
         }
 
         function stopCamera() {
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-                video.srcObject = null;
-                stream = null;
-                document.getElementById('cameraStatus').textContent = '📷 Camera Off';
-                document.getElementById('cameraStatus').style.background = 'rgba(0, 0, 0, 0.8)';
-            }
-            if (predictionInterval) {
-                clearInterval(predictionInterval);
-                predictionInterval = null;
-            }
-        }
+    if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+        video.srcObject = null;
+        stream = null;
+        document.getElementById('cameraStatus').textContent = '📷 Camera Off';
+        document.getElementById('cameraStatus').style.background = 'rgba(0, 0, 0, 0.8)';
+    }
+    if (predictionInterval) {
+        clearInterval(predictionInterval);
+        predictionInterval = null;
+    }
+    
+    // Show video element again and remove canvas
+    const displayCanvas = document.getElementById('displayCanvas');
+    if (displayCanvas) {
+        displayCanvas.remove();
+    }
+    video.style.display = 'block';
+}
 
         function clearSentence() {
             currentSentence = '';
@@ -1345,63 +1426,171 @@ def create_templates():
             document.getElementById('sentenceDisplay').textContent = 'Start making gestures to build your message...';
             document.getElementById('totalLetters').textContent = '0';
             document.getElementById('wordsCount').textContent = '0';
+            document.getElementById('ttsButton').disabled = true;
+            if (currentAudio) {
+                currentAudio.pause();
+                currentAudio = null;
+            }
         }
 
         function updateStats() {
             document.getElementById('totalLetters').textContent = totalLettersDetected;
             const words = currentSentence.trim().split(/\\s+/).filter(w => w.length > 0).length;
             document.getElementById('wordsCount').textContent = words;
+            
+            // Enable TTS button if there's text
+            document.getElementById('ttsButton').disabled = currentSentence.trim().length === 0;
+        }
+
+        async function speakText() {
+            const text = currentSentence.trim();
+            if (!text) {
+                alert('No text to speak!');
+                return;
+            }
+
+            const ttsButton = document.getElementById('ttsButton');
+            ttsButton.disabled = true;
+            ttsButton.innerHTML = '<span class="icon">⏳</span><span>Loading...</span>';
+
+            try {
+                const response = await fetch('/text-to-speech', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ text: text })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    // Stop any currently playing audio
+                    if (currentAudio) {
+                        currentAudio.pause();
+                    }
+
+                    // Create and play new audio
+                    const audioBlob = base64ToBlob(data.audio, 'audio/mpeg');
+                    const audioUrl = URL.createObjectURL(audioBlob);
+                    currentAudio = new Audio(audioUrl);
+                    
+                    currentAudio.onended = () => {
+                        ttsButton.disabled = false;
+                        ttsButton.innerHTML = '<span class="icon">🔊</span><span>Speak Text</span>';
+                        URL.revokeObjectURL(audioUrl);
+                    };
+
+                    currentAudio.onerror = () => {
+                        alert('Error playing audio');
+                        ttsButton.disabled = false;
+                        ttsButton.innerHTML = '<span class="icon">🔊</span><span>Speak Text</span>';
+                    };
+
+                    ttsButton.innerHTML = '<span class="icon">🔊</span><span>Playing...</span>';
+                    await currentAudio.play();
+                } else {
+                    alert('Error: ' + (data.error || 'Failed to generate speech'));
+                    ttsButton.disabled = false;
+                    ttsButton.innerHTML = '<span class="icon">🔊</span><span>Speak Text</span>';
+                }
+            } catch (err) {
+                console.error('TTS error:', err);
+                alert('Failed to generate speech: ' + err.message);
+                ttsButton.disabled = false;
+                ttsButton.innerHTML = '<span class="icon">🔊</span><span>Speak Text</span>';
+            }
+        }
+
+        function base64ToBlob(base64, mimeType) {
+            const byteCharacters = atob(base64);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            return new Blob([byteArray], { type: mimeType });
         }
 
         function startPredictionLoop() {
-            if (predictionInterval) clearInterval(predictionInterval);
-            predictionInterval = setInterval(async () => {
-                if (!stream) return;
-                const canvas = document.createElement('canvas');
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(video, 0, 0);
-                canvas.toBlob(async (blob) => {
-                    const formData = new FormData();
-                    formData.append('image', blob, 'frame.jpg');
-                    formData.append('model', document.getElementById('modelSelect').value);
-                    formData.append('draw_landmarks', 'false');
-                    try {
-                        const response = await fetch('/predict', { method: 'POST', body: formData });
-                        const data = await response.json();
-                        if (data.prediction) {
-                            document.getElementById('currentLetter').textContent = data.prediction;
-                            const confidencePercent = (data.confidence * 100).toFixed(1);
-                            document.getElementById('confidence').textContent = `Confidence: ${confidencePercent}%`;
-                            document.getElementById('confidenceFill').style.width = confidencePercent + '%';
-                            if (data.confidence > 0.7) {
-                                if (data.prediction === lastPrediction) {
-                                    predictionCount++;
-                                    if (predictionCount >= 3) {
-                                        currentSentence += data.prediction;
-                                        totalLettersDetected++;
-                                        document.getElementById('sentenceDisplay').textContent = currentSentence || 'Start making gestures...';
-                                        updateStats();
-                                        predictionCount = 0;
-                                        lastPrediction = '';
-                                    }
-                                } else {
-                                    lastPrediction = data.prediction;
-                                    predictionCount = 1;
-                                }
-                            }
-                        } else if (data.error) {
-                            document.getElementById('currentLetter').textContent = '?';
-                            document.getElementById('confidence').textContent = data.error;
-                            document.getElementById('confidenceFill').style.width = '0%';
+    if (predictionInterval) clearInterval(predictionInterval);
+    predictionInterval = setInterval(async () => {
+        if (!stream) return;
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0);
+        canvas.toBlob(async (blob) => {
+            const formData = new FormData();
+            formData.append('image', blob, 'frame.jpg');
+            formData.append('model', document.getElementById('modelSelect').value);
+            formData.append('draw_landmarks', 'true');  // ← CHANGED FROM 'false' TO 'true'
+            try {
+                const response = await fetch('/predict', { method: 'POST', body: formData });
+                const data = await response.json();
+                
+                // Display the image with landmarks on the video element
+                if (data.image_with_landmarks) {
+                    const img = new Image();
+                    img.onload = () => {
+                        const tempCanvas = document.createElement('canvas');
+                        tempCanvas.width = video.videoWidth;
+                        tempCanvas.height = video.videoHeight;
+                        const tempCtx = tempCanvas.getContext('2d');
+                        tempCtx.drawImage(img, 0, 0, tempCanvas.width, tempCanvas.height);
+                        
+                        // Create a video-like element to show the processed frame
+                        video.style.display = 'none';
+                        let displayCanvas = document.getElementById('displayCanvas');
+                        if (!displayCanvas) {
+                            displayCanvas = document.createElement('canvas');
+                            displayCanvas.id = 'displayCanvas';
+                            displayCanvas.style.width = '100%';
+                            displayCanvas.style.height = 'auto';
+                            displayCanvas.style.display = 'block';
+                            video.parentNode.insertBefore(displayCanvas, video);
                         }
-                    } catch (err) {
-                        console.error('Prediction error:', err);
+                        displayCanvas.width = tempCanvas.width;
+                        displayCanvas.height = tempCanvas.height;
+                        const displayCtx = displayCanvas.getContext('2d');
+                        displayCtx.drawImage(tempCanvas, 0, 0);
+                    };
+                    img.src = 'data:image/jpeg;base64,' + data.image_with_landmarks;
+                }
+                
+                if (data.prediction) {
+                    document.getElementById('currentLetter').textContent = data.prediction;
+                    const confidencePercent = (data.confidence * 100).toFixed(1);
+                    document.getElementById('confidence').textContent = `Confidence: ${confidencePercent}%`;
+                    document.getElementById('confidenceFill').style.width = confidencePercent + '%';
+                    if (data.confidence > 0.7) {
+                        if (data.prediction === lastPrediction) {
+                            predictionCount++;
+                            if (predictionCount >= 3) {
+                                currentSentence += data.prediction;
+                                totalLettersDetected++;
+                                document.getElementById('sentenceDisplay').textContent = currentSentence || 'Start making gestures...';
+                                updateStats();
+                                predictionCount = 0;
+                                lastPrediction = '';
+                            }
+                        } else {
+                            lastPrediction = data.prediction;
+                            predictionCount = 1;
+                        }
                     }
-                }, 'image/jpeg');
-            }, 1000);
-        }
+                } else if (data.error) {
+                    document.getElementById('currentLetter').textContent = '?';
+                    document.getElementById('confidence').textContent = data.error;
+                    document.getElementById('confidenceFill').style.width = '0%';
+                }
+            } catch (err) {
+                console.error('Prediction error:', err);
+            }
+        }, 'image/jpeg');
+    }, 1000);
+}
 
         document.getElementById('modelSelect').addEventListener('change', (e) => {
             fetch('/set_model', {
@@ -1420,7 +1609,6 @@ def create_templates():
         f.write(html_content)
     
     print("✅ HTML template created successfully!")
-    
 
 def main():
     """
@@ -1466,4 +1654,3 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\n❌ An error occurred: {e}")
         print("Please check your setup and try again.")
-
