@@ -757,17 +757,26 @@ if FLASK_AVAILABLE and WEB_APP_MODE:
                                     // 2. Enough time has passed (verification period)
                                     const timeElapsed = Date.now() - firstPredictionTime;
                                     
-                                    if (predictionCount >= REQUIRED_CONSECUTIVE && timeElapsed >= MIN_TIME_MS) {
-                                        // Verified! Accept the letter
-                                        currentSentence += data.prediction;
-                                        document.getElementById('sentenceDisplay').textContent = currentSentence;
-                                        document.getElementById('ttsButton').disabled = false;
-                                        
-                                        // Reset for next prediction
-                                        predictionCount = 0;
-                                        lastPrediction = '';
-                                        firstPredictionTime = null;
-                                    }
+                                        if (predictionCount >= REQUIRED_CONSECUTIVE && timeElapsed >= MIN_TIME_MS) {
+                                            // Verified! Handle the prediction
+                                            if (data.prediction === 'DEL' || data.prediction === 'del') {
+                                                // Delete gesture: remove last character
+                                                if (currentSentence.length > 0) {
+                                                    currentSentence = currentSentence.slice(0, -1);
+                                                }
+                                            } else {
+                                                // Regular letter/space: add to sentence
+                                                currentSentence += data.prediction;
+                                            }
+                                            
+                                            document.getElementById('sentenceDisplay').textContent = currentSentence || 'Start making gestures...';
+                                            document.getElementById('ttsButton').disabled = currentSentence.trim().length === 0;
+                                            
+                                            // Reset for next prediction
+                                            predictionCount = 0;
+                                            lastPrediction = '';
+                                            firstPredictionTime = null;
+                                        }
                                 } else {
                                     // Different prediction - reset everything
                                     lastPrediction = data.prediction;
