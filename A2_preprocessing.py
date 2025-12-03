@@ -78,7 +78,6 @@ def main():
     print(f"Dataset found at: {train_path}")
     
     # Verify the dataset structure
-    # Include space, del, and nothing as classes (29 classes total: A-Z + space + del + nothing)
     alphabet = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ") + ["space", "del", "nothing"]
     missing_letters = []
     for letter in alphabet:
@@ -92,19 +91,17 @@ def main():
     else:
         print("All folders found: A-Z + space + del + nothing (29 classes total)!")
     
-    # Step 4 - Initialize Data Storage
+    # Initialize Data Storage
     print("\nInitializing data storage...")
     X = []  # Feature vectors (hand landmarks)
     y = []  # Labels (A-Z + space + del + nothing)
     
     alphabet = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ") + ["space", "del", "nothing"]
     label_mapping = {letter: idx for idx, letter in enumerate(alphabet)}
-    
     print(f"Data storage initialized for {len(alphabet)} classes (A-Z + space + del + nothing)")
     
-    # Step 5 - Process Images and Extract Landmarks
+    # Process Images and Extract Landmarks
     print("\nProcessing images and extracting hand landmarks...")
-    
     start_time = time.time()
     processed_count = 0
     total_images = 0
@@ -133,32 +130,21 @@ def main():
                       if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
         
         letter_processed = 0
-        
         for img_file in image_files:
             img_path = os.path.join(letter_path, img_file)
             
             try:
-                # Read image
-                image = cv2.imread(img_path)
+                image = cv2.imread(img_path) # Read image
                 if image is None:
                     continue
                 
-                # Resize image
-                image_resized = cv2.resize(image, (128, 128))
-                
-                # Convert BGR to RGB 
+                image_resized = cv2.resize(image, (128, 128)) 
                 image_rgb = cv2.cvtColor(image_resized, cv2.COLOR_BGR2RGB)
-                
-                # Process with MediaPipe
                 results = hands.process(image_rgb)
-                
-                # Extract hand landmarks
-                if results.multi_hand_landmarks:
-                    # Get the first  hand
+                if results.multi_hand_landmarks: # Extract hand landmarks
                     hand_landmarks = results.multi_hand_landmarks[0]
-                    
-                    # Extract 21 landmarks (x, y, z coordinates)
-                    landmarks = []
+
+                    landmarks = [] # Extract 21 landmarks (x, y, z coordinates)
                     for landmark in hand_landmarks.landmark:
                         landmarks.extend([landmark.x, landmark.y, landmark.z])
                     
@@ -180,11 +166,9 @@ def main():
                 continue
         
         print(f"   Processed {letter_processed} images for letter '{letter}'")
-    
-    # Close MediaPipe hands
+
     hands.close()
-    
-    # Convert to NumPy Arrays
+
     print(f"\nConverting data to NumPy arrays...")
     X = np.array(X, dtype=np.float32)
     y = np.array(y, dtype=np.int32)
@@ -192,32 +176,27 @@ def main():
     print(f"Data converted successfully!")
     print(f"   Feature matrix shape: {X.shape}")
     print(f"   Labels shape: {y.shape}")
-    
-    #  One-Hot Encode Labels
+
     print(f"\nOne-hot encoding labels...")
-    num_classes = len(alphabet)  # 29 classes (A-Z + space + del + nothing)
+    num_classes = len(alphabet) 
     y_categorical = to_categorical(y, num_classes=num_classes)
     
     print(f"Labels one-hot encoded!")
     print(f"   One-hot encoded labels shape: {y_categorical.shape}")
-    
-    # Step 8 - Split Data into Train/Test Sets
+
     print(f"\nSplitting data into train/test sets (80/20)...")
     X_train, X_test, y_train, y_test = train_test_split(
         X, y_categorical, 
         test_size=0.2, 
         random_state=42, 
-        stratify=y  # Ensure balanced distribution
+        stratify=y  
     )
     
     print(f"Data split completed!")
     print(f"   Training set: {X_train.shape[0]} samples")
     print(f"   Test set: {X_test.shape[0]} samples")
-    
-    # Step 9 - Save Processed Data
+
     print(f"\nSaving processed data...")
-    
-    # Create output directory if it doesn't exist
     output_dir = SCRIPT_DIR / "processed_data"
     output_dir.mkdir(exist_ok=True)
     
@@ -226,7 +205,6 @@ def main():
     np.save(str(output_dir / "X_test.npy"), X_test)
     np.save(str(output_dir / "y_train.npy"), y_train)
     np.save(str(output_dir / "y_test.npy"), y_test)
-    
     print(f"Data saved successfully in '{output_dir}' directory!")
     
     # Step 10 - Print Summary
@@ -241,17 +219,7 @@ def main():
     print(f"   • Training samples: {X_train.shape[0]}")
     print(f"   • Test samples: {X_test.shape[0]}")
     print(f"   • Processing time: {total_time:.2f} seconds")
-    print(f"\nOutput Files:")
-    print(f"   • X_train.npy - Training features")
-    print(f"   • X_test.npy - Test features")
-    print(f"   • y_train.npy - Training labels (one-hot encoded)")
-    print(f"   • y_test.npy - Test labels (one-hot encoded)")
-    
-    print(f"\nNext Steps:")
-    print(f"   • Use the processed data to train your CNN/LSTM model")
-    print(f"   • The feature vectors contain 21 hand landmarks with x, y, z coordinates")
-    print(f"   • Each landmark represents a specific point on the hand")
-    print(f"   • Labels are one-hot encoded for multi-class classification")
+
     
     print(f"\n" + "=" * 60)
     print("Preprocessing pipeline completed successfully!")
