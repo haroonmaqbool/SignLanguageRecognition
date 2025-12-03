@@ -140,7 +140,7 @@ def load_data():
         
     except FileNotFoundError as e:
         print(f" Error: Could not find data file: {e}")
-        print("Please run A2_preprocessing.py first to generate processed data.")
+        print("Please run preprocessing.py first to generate processed data.")
         return None, None, None, None
     except Exception as e:
         print(f" Error loading data: {e}")
@@ -187,7 +187,7 @@ def sanity_checks(X_train, X_test, y_train, y_test):
     
     if abs(train_mean) > 0.1:
         print("   WARNING: Data doesn't appear to be normalized (mean not near 0)")
-        print("   Please re-run A2_preprocessing.py with normalization enabled")
+        print("   Please re-run preprocessing.py with normalization enabled")
     else:
         print("   Data appears to be normalized")
 

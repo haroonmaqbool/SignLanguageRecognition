@@ -107,9 +107,9 @@ def check_dataset_structure():
         print(f"   - Total of {total_images} images available")
         print(f"   - Total classes: {total_classes} (will train on {total_classes} classes)")
         print(f"\nNext steps:")
-        print(f"   1. Run: python A2_preprocessing.py")
-        print(f"   2. Run: python A2_train_model.py")
-        print(f"   3. Run: python A2_evaluate_model.py")
+        print(f"   1. Run: python preprocessing.py")
+        print(f"   2. Run: python train_model.py")
+        print(f"   3. Run: python evaluate_model.py")
     else:
         print(f"\n[WARNING] Dataset may not be complete enough for training")
         print(f"   - You only have {len(found_letters)} letters")

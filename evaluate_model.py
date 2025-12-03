@@ -65,7 +65,7 @@ def load_test_data():
         
     except FileNotFoundError as e:
         print(f" Error: Could not find data file: {e}")
-        print("Please run A2_preprocessing.py first to generate processed data.")
+        print("Please run preprocessing.py first to generate processed data.")
         return None, None
     except Exception as e:
         print(f" Error loading test data: {e}")
